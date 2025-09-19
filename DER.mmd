@@ -9,92 +9,185 @@ erDiagram
     bigint id_alumno FK
     bigint id_curso FK
   }
-  Usuario {
-    bigint Usuario_id PK
-    bigint legajo 
-    bigint Alumno_Dni 
+
+  %% TODO: falta completar
+  %% Inscripcion_Final{
+  %%   bigint Inscripcion_Final_Nro PK
+  %%   DATETIME2 Inscripcion_Final_Fecha "length:6"
+  %% }
+
+  %% ExamenFinal{
+  %%   DATETIME2 Examen_Final_Fecha "length:6"
+  %%   varchar Examen_Final_Hora "length:255"
+  %% }
+
+  Alumno {
+    bigint legajo PK
+    bigint Alumno_Dni
     varchar Alumno_Nombre "length: 255"
     varchar Alumno_Apellido "length: 255"
     DATETIME2 Alumno_FechaNacimiento "length: 6"
-    bigint id_domicilio FK
-    bigint id_contacto FK
-    int id_rol FK
+    %% TODO: Mientras desnormalizamos el contacto, pero se puede mejorar
+    %% bigint id_contacto FK
+    varchar Alumno_Telefono "length: 255"
+    varchar Alumno_Mail "length: 255"
+    bigint id_domicilio_alumno FK
+  }
+
+  Profesor {
+    NVARCHAR Profesor_id PK "length:255"
+    NVARCHAR Profesor_Nombre "length: 255"
+    NVARCHAR Profesor_Apellido "length: 255"
+    DATETIME2 Profesor_FechaNacimiento "length: 6"
+    NVARCHAR id_domicilio_profesor FK
+    NVARCHAR Profesor_Telefono "length: 255"
+    NVARCHAR Profesor_Mail "length: 255"
+    %% NVARCHAR id_contacto FK
   }
   Domicilio {
     bigint id PK
     NVARCHAR direccion "length: 255"
     bignt id_localidad FK
   }
+
+  Domicilio_Alumno {
+    bigint id_domicilio PK
+    VARCHAR direccion "length: 255"
+    bignt id_localidad FK
+  }
+
 Localidad {
     bigint id_localidad PK
     NVARCHAR localidad_nombre "length: 255"
     bigint id_provincia FK
 }
+
 Provincia {
     bigint id_provincia PK
     NVARCHAR provincia_nombre "length: 255"
 }
 
-  Mail {
-    bigint id PK
-    varchar nombre "length: 255"
-  }
-  Telefono {
-    bigint id PK
-    smallint numero
-  }
+  %% Mail {
+  %%   bigint id PK
+  %%   varchar nombre "length: 255"
+  %% }
+  %% Telefono {
+  %%   bigint id PK
+  %%   smallint numero
+  %% }
+  
   Curso {
     bigint Curso_Codigo PK
     varchar Curso_Nombre "length: 255"
     varchar Curso_Descripcion "length: 255"
     varchar Curso_Categoria "length: 255"
+    %% TODO: precio se debe dejar un historial
+    bigint id_precio FK
+    bigint id_profesor FK
+    bigint id_horario FK
+  }
+
+  Precio_Historico{
+    bigint id PK
+    decimal precio_actual "length:38"
+    %%Autoreferencia para dejar historial (NULLABLE)
+    bigint precio_anterior FK
+  }
+  %% TODO: mejorar la normalización del horario
+  Horario{
+    bigint id PK
+    %%DURACIONMESES SE DEBERIA ELIMINAR XQ ES CSALCULABLE CON LAS FECHA_INICIO Y FECHA_FIN
+    bigint Curso_DuracionMeses 
     DATETIME2 Curso_FechaInicio "length: 6"
     DATETIME2 Curso_FechaFin "length: 6"
-    bigint Curso_DuracionMeses
+    %%VER SI HACERLO FK CURSO_DIA
     varchar Curso_Dia "length: 255"
     varchar Curso_Turno "length: 255"
-    decimal Curso_PrecioMensual "length: 38"
-    bigint id_profesor FK
   }
+
   Modulo {
     bigint id PK
     varchar Modulo_Nombre "length: 255"
     varchar Modulo_Descripcion "length: 255"
     bigint id_curso FK
   }
+
   Sede {
-    bigint id PK
+    %%AGREGADO id
+    bigint id PK 
     NVARCHAR Sede_Nombre "length: 255"
-    bigint id_domicilio FK
-    bigint id_contacto FK
+    bigint id_domicilio_sede FK
+    NVARCHAR Sede_Telefono "length(255)"
+    NVARCHAR Sede_Mail "length(255)"
+    %% bigint id_contacto_sede FK
+    bigint id_institucion FK
+  }
   
+  Institucion{
+    %% Usamos clave subrogada para no usar el alfanumérico CUIT como PK
+    bigint id PK
+    NVARCHAR Institucion_Nombre "length(255)"
+    NVARCHAR Institucion_RazonSocial "length(255)"
+    NVARCHAR Institucion_Cuit "length(255)" 
   }
-  RolUsuario {
-    int rol_id PK
-    varchar rol_nombre "length: 15"
+  
+  %% Contacto {
+  %%   bigint id_contacto PK
+  %%   bigint id_telefono FK
+  %%   bigint id_mail FK
+  %% }
 
-  }
-  Contacto {
-    bigint id_contacto PK
-    bigint id_telefono FK
-    bigint id_mail FK
+  Evaluacion_Curso{
+    bigint id PK
+    bigint id_modulo FK
+    bigint legajo_alumno FK
+    DATETIME2 Evaluacion_Curso_fechaEvaluacion "length: 6"
+    bigint Evaluacion_Curso_Nota
+    bit Evaluacion_Curso_Presente
+    bigint Evaluacion_Curso_Instancia
   }
 
-RolUsuario |o--o{ Usuario : ""
-Usuario ||--o{ Inscripcion: ""
-Usuario ||--|| Domicilio: ""
+  %% TPs Individual
+  Trabajo_Practico {
+    %% Clave subrogada porque un alumno puede recursar en el mismo curso
+    bigint id PK
+    bigint legajo_alumno FK
+    bigint id_curso FK
+    DATETIME2 Trabajo_Practico_FechaEvaluacion "length: 6"
+    bigint Trabajo_Practico_Nota
+  }
+
+  %% TODO: en proceso
+  Encuesta {
+    
+  }
+
+  Factura{
+    DATETIME2 Factura_FechaEmision "length: 6"
+  }
+
 Domicilio ||--|| Sede: ""
 Curso ||--o{ Inscripcion: ""
 Curso ||--|{ Modulo: ""
 Curso |o--o| Sede: ""
-Sede ||--o| Contacto: ""
-Usuario ||--o{ Curso: ""
+
+%% TODO: hacer algo con el contacto
+%% Sede ||--o| Contacto: ""
+%% Contacto |o--|| Telefono: ""
+%% Contacto |o--|| Mail: ""
+
 Domicilio }|--|| Localidad: ""
 Localidad }|--|| Provincia: ""
-Contacto ||--|| Usuario: ""
-Contacto |o--|| Telefono: ""
-Contacto |o--|| Mail: ""
-
+Institucion ||--|{ Sede: ""
+Alumno ||--o{ Evaluacion_Curso: ""
+Modulo ||--o{ Evaluacion_Curso: ""
+Alumno ||--o| Trabajo_Practico: ""
+Curso ||--o{ Trabajo_Practico: ""
+Profesor ||--|| Domicilio:""
+Alumno ||--|| Domicilio_Alumno:""
+Profesor ||--o{ Curso: ""
+Curso ||--|| Precio_Historico: ""
+Curso }o--|| Horario: ""
 
 %% Usuario: representa tanto al alumno como al profesor
 %% Un Rol de Usuario lo pueden tener varios Usuarios
