@@ -36,10 +36,10 @@ erDiagram
     DATETIME2 Curso_FechaFin "length: 6"
     %%DURACIONMESES ES CALCULABLE CON LAS FECHA_INICIO Y FECHA_FIN, pero viene de la Tabla Maestra
     bigint Curso_DuracionMeses
+    decimal Curso_PrecioMensual "length: 38, 2"
     bigint id_categoria FK
     bigint id_sede FK
-    bigint id_precio FK
-    bigint id_profesor FK
+    NVARCHAR id_profesor FK
   }
 
   %% Tablas Paramétricas de Curso
@@ -60,13 +60,15 @@ erDiagram
     bigint id_curso PK, FK
   }
 
-  Precio_Historico{
-    bigint id PK
-    bigint id_curso FK
-    decimal Curso_PrecioMensual "length:38, 2"
-    %% Sólo la fecha de inicio de vigencia
-    DATETIME2 fecha_vigencia_desde "length:6"
-  }
+  %% Documentación: la idea del precio histórico es tener el precio de lista vigente en un momento dado, independientemente de si alguien lo pagó o no
+  %% Lo saco por ahora ya que se considera que con que la factura tenga el precio que se cobró alcanza
+  %% Precio_Historico{
+  %%   bigint id PK
+  %%   bigint id_curso FK
+  %%   decimal Curso_PrecioMensual "length:38, 2"
+  %%   %% Sólo la fecha de inicio de vigencia
+  %%   DATETIME2 fecha_vigencia_desde "length:6"
+  %% }
 
   Modulo {
     bigint id PK
@@ -148,9 +150,9 @@ erDiagram
   %% Tabla Maestra Examenes Finales
   ExamenFinal{
     bigint id PK
+    bigint id_curso FK
     DATETIME2 Examen_Final_Fecha "length:6"
     varchar Examen_Final_Hora "length:255"
-    bigint id_curso FK
   }
 
   %% Entidad Intermedia: Evento de inscripción a un examen final de un alumno
@@ -161,20 +163,61 @@ erDiagram
     bigint id_examen_final FK
   }
 
-  %% Tabla Maestra Evaluación Final: es el resultado de la evaluación
+  %% Tabla Transaccional Evaluación Final: es el resultado del examen final
   Evaluacion_Final{
-    
+    bigint id PK
+    bigint id_inscripcion_final FK
+    NVARCHAR id_profesor FK
+    %% NULLABLE si estuvo ausente
+    bigint Evaluacion_Final_Nota
+    bit Evaluacion_Final_Presente
   }
 
-  %% TODO: en proceso
-  Encuesta {
-    
-  }
-
+  %% Tabla Transaccional Factura
   Factura{
+    bigint Factura_Numero PK
     DATETIME2 Factura_FechaEmision "length: 6"
+    DATETIME2 Factura_FechaVencimiento "length: 6"
+    bigint legajo_alumno FK
+    decimal Factura_Total "length: 18, 2"
   }
 
+  Detalle_Factura{
+    %% TODO: está bien tener una clave subrogada?
+    bigint id PK
+    bigint Factura_Numero FK
+    bigint id_curso FK
+    bigint periodo_Anio
+    bigint periodo_Mes
+    decimal Detalle_Factura_Importe "length: 18, 2"
+  }
+
+  %% Tabla Transaccional Pago:  registrar y gestionar los pagos de los alumnos.
+  Pago {
+    bigint id PK
+    bigint id_factura FK
+    DATETIME2 Pago_Fecha "length: 6"
+    decimal Pago_Importe "length: 18, 2"
+    %% Documentación: el paso se realiza por un único medio de pago
+    %% Documentación: se puede añadir una constraint de CHECK("efectivo", "tarjeta", "transferencia"), etc.
+    varchar Pago_MedioPago "length: 255"
+  }
+
+  %% Tabla Encuesta
+  Encuesta {
+    bigint id PK
+    bigint id_curso FK
+    datetime2 Encuesta_FechaRegistro "length: 6"
+    varchar Encuesta_Observacion "length: 255"
+  }
+
+  %% Documentación: hay preguntas predefinidas? Si hubiesen preguntas predefinidas se tendría que crear la tabla Pregunta
+  Detalle {
+    bigint id PK
+    bigint id_encuesta FK
+    varchar Encuesta_Pregunta "length: 255"
+    bigint Encuesta_Nota
+  }
 
 %% Relaciones de la Tabla Sede
 Sede }o--|| Localidad: ""
@@ -188,7 +231,7 @@ Curso ||--|{ Curso_Dia: ""
 Profesor ||--o{ Curso: ""
 
 DiaSemana ||--o{ Curso_Dia: ""
-Curso ||--|{ Precio_Historico: ""
+%% Curso ||--|{ Precio_Historico: ""
 Curso ||--|{ Modulo: ""
 
 %% Entidad Intermedia: Inscripción
@@ -210,3 +253,15 @@ Curso ||--o{ Trabajo_Practico: ""
 Alumno ||--o{ Inscripcion_Final: ""
 ExamenFinal ||--o{ Inscripcion_Final: ""
 Curso ||--o{ ExamenFinal: ""
+
+Profesor ||--o{ Evaluacion_Final: ""
+Inscripcion_Final ||--o| Evaluacion_Final: ""
+
+%% Entidad Transaccional Factura
+Factura ||--|{ Detalle_Factura: ""
+%% Documentación: duda, se considera que el pago de la factura se realiza en su totalidad y no en cuotas o una parte por un medio de pago y otra por otra?
+%% Por ahora se considera la relación 1:1
+Factura ||--o| Pago: ""
+
+%% Tabla Encuesta
+Encuesta ||--|{ Detalle: ""
