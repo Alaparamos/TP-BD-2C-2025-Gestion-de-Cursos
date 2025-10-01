@@ -1,108 +1,71 @@
 %% TODO: DECIDIR CÓMO TOMAMOS EL LEGAJO
 
 erDiagram
+  %% Entidad Intermedia Alumno-Curso
   Inscripcion {
     bigint Inscripcion_Numero PK
     DATETIME2 Inscripcion_Fecha "length: 6"
+    %% Constraint de CHECK("pendiente", "aprobada", "rechazada")
     varchar Inscripcion_Estado "length: 255"
     DATETIME2 Inscripcion_FechaRespuesta "length: 6"
     bigint id_alumno FK
     bigint id_curso FK
   }
 
-  %% TODO: falta completar
-  %% Inscripcion_Final{
-  %%   bigint Inscripcion_Final_Nro PK
-  %%   DATETIME2 Inscripcion_Final_Fecha "length:6"
-  %% }
-
-  %% ExamenFinal{
-  %%   DATETIME2 Examen_Final_Fecha "length:6"
-  %%   varchar Examen_Final_Hora "length:255"
-  %% }
-
+  %% Tabla Maestra  Alumno
   Alumno {
     bigint legajo PK
     bigint Alumno_Dni
     varchar Alumno_Nombre "length: 255"
     varchar Alumno_Apellido "length: 255"
     DATETIME2 Alumno_FechaNacimiento "length: 6"
-    %% TODO: Mientras desnormalizamos el contacto, pero se puede mejorar
-    %% bigint id_contacto FK
+    varchar Alumno_Direccion "length: 255"
     varchar Alumno_Telefono "length: 255"
     varchar Alumno_Mail "length: 255"
-    bigint id_domicilio_alumno FK
   }
 
-  Profesor {
-    NVARCHAR Profesor_id PK "length:255"
-    NVARCHAR Profesor_Nombre "length: 255"
-    NVARCHAR Profesor_Apellido "length: 255"
-    DATETIME2 Profesor_FechaNacimiento "length: 6"
-    NVARCHAR id_domicilio_profesor FK
-    NVARCHAR Profesor_Telefono "length: 255"
-    NVARCHAR Profesor_Mail "length: 255"
-    %% NVARCHAR id_contacto FK
-  }
-  Domicilio {
-    bigint id PK
-    NVARCHAR direccion "length: 255"
-    bignt id_localidad FK
-  }
-
-  Domicilio_Alumno {
-    bigint id_domicilio PK
-    VARCHAR direccion "length: 255"
-    bignt id_localidad FK
-  }
-
-Localidad {
-    bigint id_localidad PK
-    NVARCHAR localidad_nombre "length: 255"
-    bigint id_provincia FK
-}
-
-Provincia {
-    bigint id_provincia PK
-    NVARCHAR provincia_nombre "length: 255"
-}
-
-  %% Mail {
-  %%   bigint id PK
-  %%   varchar nombre "length: 255"
-  %% }
-  %% Telefono {
-  %%   bigint id PK
-  %%   smallint numero
-  %% }
-  
-  Curso {
+  %% Tabla Maestra Curso
+    Curso {
     bigint Curso_Codigo PK
     varchar Curso_Nombre "length: 255"
     varchar Curso_Descripcion "length: 255"
-    varchar Curso_Categoria "length: 255"
-    %% TODO: precio se debe dejar un historial
+    %% Tomamos como que un Curso se dicta en un solo Turno (en la tabla maestra no hay cursos que se dicten en dos turnos)
+    %% Constraint de CHECK("mañana", "tarde", "noche")
+    varchar Curso_Turno "length: 255"
+    DATETIME2 Curso_FechaInicio "length: 6"
+    DATETIME2 Curso_FechaFin "length: 6"
+    %%DURACIONMESES ES CALCULABLE CON LAS FECHA_INICIO Y FECHA_FIN, pero viene de la Tabla Maestra
+    bigint Curso_DuracionMeses
+    bigint id_categoria FK
+    bigint id_sede FK
     bigint id_precio FK
     bigint id_profesor FK
-    bigint id_horario FK
+  }
+
+  %% Tablas Paramétricas de Curso
+  Categoria {
+    bigint id_categoria PK
+    varchar nombre "length: 255"
+  }
+
+  DiaSemana{
+    smallint id PK
+    %% Constraint de CHECK("Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo")
+    varchar dia "length: 255"
+  }
+
+  %% No se considera un historial de horarios que tuvo un Curso
+  Curso_Dia{
+    smallint id_dia_semana PK, FK
+    bigint id_curso PK, FK
   }
 
   Precio_Historico{
     bigint id PK
-    decimal precio_actual "length:38"
-    %%Autoreferencia para dejar historial (NULLABLE)
-    bigint precio_anterior FK
-  }
-  %% TODO: mejorar la normalización del horario
-  Horario{
-    bigint id PK
-    %%DURACIONMESES SE DEBERIA ELIMINAR XQ ES CSALCULABLE CON LAS FECHA_INICIO Y FECHA_FIN
-    bigint Curso_DuracionMeses 
-    DATETIME2 Curso_FechaInicio "length: 6"
-    DATETIME2 Curso_FechaFin "length: 6"
-    %%VER SI HACERLO FK CURSO_DIA
-    varchar Curso_Dia "length: 255"
-    varchar Curso_Turno "length: 255"
+    bigint id_curso FK
+    decimal Curso_PrecioMensual "length:38, 2"
+    %% Sólo la fecha de inicio de vigencia
+    DATETIME2 fecha_vigencia_desde "length:6"
   }
 
   Modulo {
@@ -112,17 +75,41 @@ Provincia {
     bigint id_curso FK
   }
 
+  %% Tabla Maestra Profesor
+  Profesor {
+    NVARCHAR Profesor_id PK "length:255"
+    NVARCHAR Profesor_Nombre "length: 255"
+    NVARCHAR Profesor_Apellido "length: 255"
+    DATETIME2 Profesor_FechaNacimiento "length: 6"
+    NVARCHAR Profesor_Direccion "length: 255"
+    NVARCHAR Profesor_Telefono "length: 255"
+    NVARCHAR Profesor_Mail "length: 255"
+  }
+
+  %% Tabla Maestra  Sede
   Sede {
     %%AGREGADO id
     bigint id PK 
     NVARCHAR Sede_Nombre "length: 255"
-    bigint id_domicilio_sede FK
+    bigint id_localidad FK
     NVARCHAR Sede_Telefono "length(255)"
     NVARCHAR Sede_Mail "length(255)"
-    %% bigint id_contacto_sede FK
     bigint id_institucion FK
   }
-  
+
+  %% Tablas Paramétricas de Sede
+  Localidad {
+    bigint id_localidad PK
+    NVARCHAR localidad_nombre "length: 255"
+    bigint id_provincia FK
+  }
+
+  Provincia {
+    bigint id_provincia PK
+    NVARCHAR provincia_nombre "length: 255"
+  }
+
+  %% TABLA MAESTRA Institución
   Institucion{
     %% Usamos clave subrogada para no usar el alfanumérico CUIT como PK
     bigint id PK
@@ -130,24 +117,25 @@ Provincia {
     NVARCHAR Institucion_RazonSocial "length(255)"
     NVARCHAR Institucion_Cuit "length(255)" 
   }
-  
-  %% Contacto {
-  %%   bigint id_contacto PK
-  %%   bigint id_telefono FK
-  %%   bigint id_mail FK
-  %% }
 
+  %% Tabla Maestra Evaluación de Curso: representa el evento de una evaluación
   Evaluacion_Curso{
     bigint id PK
     bigint id_modulo FK
-    bigint legajo_alumno FK
     DATETIME2 Evaluacion_Curso_fechaEvaluacion "length: 6"
+  }
+
+  Resultado_Evaluacion{
+    bigint id_evaluacion_curso PK, FK
+    bigint legajo_alumno PK, FK
+    %% NULLABLE si estuvo ausente
     bigint Evaluacion_Curso_Nota
     bit Evaluacion_Curso_Presente
     bigint Evaluacion_Curso_Instancia
   }
 
-  %% TPs Individual
+  %% Tabla Maestra Trabajo Práctico
+  %% Se consideran TPs Individual
   Trabajo_Practico {
     %% Clave subrogada porque un alumno puede recursar en el mismo curso
     bigint id PK
@@ -155,6 +143,27 @@ Provincia {
     bigint id_curso FK
     DATETIME2 Trabajo_Practico_FechaEvaluacion "length: 6"
     bigint Trabajo_Practico_Nota
+  }
+
+  %% Tabla Maestra Examenes Finales
+  ExamenFinal{
+    bigint id PK
+    DATETIME2 Examen_Final_Fecha "length:6"
+    varchar Examen_Final_Hora "length:255"
+    bigint id_curso FK
+  }
+
+  %% Entidad Intermedia: Evento de inscripción a un examen final de un alumno
+  Inscripcion_Final{
+    bigint Inscripcion_Final_Nro PK
+    DATETIME2 Inscripcion_Final_Fecha "length:6"
+    bigint legajo_alumno FK
+    bigint id_examen_final FK
+  }
+
+  %% Tabla Maestra Evaluación Final: es el resultado de la evaluación
+  Evaluacion_Final{
+    
   }
 
   %% TODO: en proceso
@@ -166,28 +175,38 @@ Provincia {
     DATETIME2 Factura_FechaEmision "length: 6"
   }
 
-Domicilio ||--|| Sede: ""
-Curso ||--o{ Inscripcion: ""
-Curso ||--|{ Modulo: ""
-Curso |o--o| Sede: ""
 
-%% TODO: hacer algo con el contacto
-%% Sede ||--o| Contacto: ""
-%% Contacto |o--|| Telefono: ""
-%% Contacto |o--|| Mail: ""
-
-Domicilio }|--|| Localidad: ""
+%% Relaciones de la Tabla Sede
+Sede }o--|| Localidad: ""
 Localidad }|--|| Provincia: ""
 Institucion ||--|{ Sede: ""
-Alumno ||--o{ Evaluacion_Curso: ""
-Modulo ||--o{ Evaluacion_Curso: ""
+
+%% Relaciones de la Tabla Curso
+Curso |o--o| Sede: ""
+Curso |o--|| Categoria: ""
+Curso ||--|{ Curso_Dia: ""
+Profesor ||--o{ Curso: ""
+
+DiaSemana ||--o{ Curso_Dia: ""
+Curso ||--|{ Precio_Historico: ""
+Curso ||--|{ Modulo: ""
+
+%% Entidad Intermedia: Inscripción
+Curso ||--o{ Inscripcion: ""
+Alumno ||--o{ Inscripcion: ""
+
+%% Tabla Maestra Evaluación de Modulos de un Curso
+%% La instancia de evaluación del modulo de un curso es en particular para ese modelo del curso.
+%% Claramente que pueden darse casos de que 2 fechas instancia de evaluación de un modelo de 2 cursos diferentes coincidan
+Modulo ||--|{ Evaluacion_Curso: ""
+Alumno ||--o{ Resultado_Evaluacion: ""
+Evaluacion_Curso ||--o{ Resultado_Evaluacion: ""
+
+%% Tabla Maestra Trabajo Práctico
 Alumno ||--o| Trabajo_Practico: ""
 Curso ||--o{ Trabajo_Practico: ""
-Profesor ||--|| Domicilio:""
-Alumno ||--|| Domicilio_Alumno:""
-Profesor ||--o{ Curso: ""
-Curso ||--|| Precio_Historico: ""
-Curso }o--|| Horario: ""
 
-%% Usuario: representa tanto al alumno como al profesor
-%% Un Rol de Usuario lo pueden tener varios Usuarios
+%% Entidad Intermedia: Inscripción a Examen Final
+Alumno ||--o{ Inscripcion_Final: ""
+ExamenFinal ||--o{ Inscripcion_Final: ""
+Curso ||--o{ ExamenFinal: ""
