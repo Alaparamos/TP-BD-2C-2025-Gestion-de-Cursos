@@ -216,6 +216,7 @@ erDiagram
     bigint id PK
     bigint id_encuesta FK
     varchar Encuesta_Pregunta "length: 255"
+    %% Documentación: Añadir constraint de CHECK(nota <= 10 AND nota >= 1)
     bigint Encuesta_Nota
   }
 
