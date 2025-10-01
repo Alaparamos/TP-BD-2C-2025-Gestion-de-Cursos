@@ -1,100 +1,100 @@
-%% TODO: DECIDIR CÓMO TOMAMOS EL LEGAJO
-%% Documentación del Diagrama Normalizado para ponerlo en el PDF
-erDiagram
-  Inscripcion {
-    bigint Inscripcion_Numero PK
-    DATETIME2 Inscripcion_Fecha "length: 6"
-    varchar Inscripcion_Estado "length: 255"
-    DATETIME2 Inscripcion_FechaRespuesta "length: 6"
-    bigint id_alumno FK
-    bigint id_curso FK
-  }
-  Usuario {
-    bigint Usuario_id PK
-    bigint legajo 
-    bigint Alumno_Dni 
-    varchar Alumno_Nombre "length: 255"
-    varchar Alumno_Apellido "length: 255"
-    DATETIME2 Alumno_FechaNacimiento "length: 6"
-    bigint id_domicilio FK
-    bigint id_contacto FK
-    int id_rol FK
-  }
-  Domicilio {
-    bigint id PK
-    NVARCHAR direccion "length: 255"
-    bignt id_localidad FK
-  }
-Localidad {
-    bigint id_localidad PK
-    NVARCHAR localidad_nombre "length: 255"
-    bigint id_provincia FK
-}
-Provincia {
-    bigint id_provincia PK
-    NVARCHAR provincia_nombre "length: 255"
-}
+%% %% TODO: DECIDIR CÓMO TOMAMOS EL LEGAJO
+%% %% Documentación del Diagrama Normalizado para ponerlo en el PDF
+%% erDiagram
+%%   Inscripcion {
+%%     bigint Inscripcion_Numero PK
+%%     DATETIME2 Inscripcion_Fecha "length: 6"
+%%     varchar Inscripcion_Estado "length: 255"
+%%     DATETIME2 Inscripcion_FechaRespuesta "length: 6"
+%%     bigint id_alumno FK
+%%     bigint id_curso FK
+%%   }
+%%   Usuario {
+%%     bigint Usuario_id PK
+%%     bigint legajo 
+%%     bigint Alumno_Dni 
+%%     varchar Alumno_Nombre "length: 255"
+%%     varchar Alumno_Apellido "length: 255"
+%%     DATETIME2 Alumno_FechaNacimiento "length: 6"
+%%     bigint id_domicilio FK
+%%     bigint id_contacto FK
+%%     int id_rol FK
+%%   }
+%%   Domicilio {
+%%     bigint id PK
+%%     NVARCHAR direccion "length: 255"
+%%     bignt id_localidad FK
+%%   }
+%% Localidad {
+%%     bigint id_localidad PK
+%%     NVARCHAR localidad_nombre "length: 255"
+%%     bigint id_provincia FK
+%% }
+%% Provincia {
+%%     bigint id_provincia PK
+%%     NVARCHAR provincia_nombre "length: 255"
+%% }
 
-  Mail {
-    bigint id PK
-    varchar nombre "length: 255"
-  }
-  Telefono {
-    bigint id PK
-    smallint numero
-  }
-  Curso {
-    bigint Curso_Codigo PK
-    varchar Curso_Nombre "length: 255"
-    varchar Curso_Descripcion "length: 255"
-    varchar Curso_Categoria "length: 255"
-    DATETIME2 Curso_FechaInicio "length: 6"
-    DATETIME2 Curso_FechaFin "length: 6"
-    bigint Curso_DuracionMeses
-    varchar Curso_Dia "length: 255"
-    varchar Curso_Turno "length: 255"
-    decimal Curso_PrecioMensual "length: 38"
-    bigint id_profesor FK
-  }
-  Modulo {
-    bigint id PK
-    varchar Modulo_Nombre "length: 255"
-    varchar Modulo_Descripcion "length: 255"
-    bigint id_curso FK
-  }
-  Sede {
-    bigint id PK
-    NVARCHAR Sede_Nombre "length: 255"
-    bigint id_domicilio FK
-    bigint id_contacto FK
+%%   Mail {
+%%     bigint id PK
+%%     varchar nombre "length: 255"
+%%   }
+%%   Telefono {
+%%     bigint id PK
+%%     smallint numero
+%%   }
+%%   Curso {
+%%     bigint Curso_Codigo PK
+%%     varchar Curso_Nombre "length: 255"
+%%     varchar Curso_Descripcion "length: 255"
+%%     varchar Curso_Categoria "length: 255"
+%%     DATETIME2 Curso_FechaInicio "length: 6"
+%%     DATETIME2 Curso_FechaFin "length: 6"
+%%     bigint Curso_DuracionMeses
+%%     varchar Curso_Dia "length: 255"
+%%     varchar Curso_Turno "length: 255"
+%%     decimal Curso_PrecioMensual "length: 38"
+%%     bigint id_profesor FK
+%%   }
+%%   Modulo {
+%%     bigint id PK
+%%     varchar Modulo_Nombre "length: 255"
+%%     varchar Modulo_Descripcion "length: 255"
+%%     bigint id_curso FK
+%%   }
+%%   Sede {
+%%     bigint id PK
+%%     NVARCHAR Sede_Nombre "length: 255"
+%%     bigint id_domicilio FK
+%%     bigint id_contacto FK
   
-  }
-  RolUsuario {
-    int rol_id PK
-    varchar rol_nombre "length: 15"
+%%   }
+%%   RolUsuario {
+%%     int rol_id PK
+%%     varchar rol_nombre "length: 15"
 
-  }
-  Contacto {
-    bigint id_contacto PK
-    bigint id_telefono FK
-    bigint id_mail FK
-  }
+%%   }
+%%   Contacto {
+%%     bigint id_contacto PK
+%%     bigint id_telefono FK
+%%     bigint id_mail FK
+%%   }
 
-RolUsuario |o--o{ Usuario : ""
-Usuario ||--o{ Inscripcion: ""
-Usuario ||--|| Domicilio: ""
-Domicilio ||--|| Sede: ""
-Curso ||--o{ Inscripcion: ""
-Curso ||--|{ Modulo: ""
-Curso |o--o| Sede: ""
-Sede ||--o| Contacto: ""
-Usuario ||--o{ Curso: ""
-Domicilio }|--|| Localidad: ""
-Localidad }|--|| Provincia: ""
-Contacto ||--|| Usuario: ""
-Contacto |o--|| Telefono: ""
-Contacto |o--|| Mail: ""
+%% RolUsuario |o--o{ Usuario : ""
+%% Usuario ||--o{ Inscripcion: ""
+%% Usuario ||--|| Domicilio: ""
+%% Domicilio ||--|| Sede: ""
+%% Curso ||--o{ Inscripcion: ""
+%% Curso ||--|{ Modulo: ""
+%% Curso |o--o| Sede: ""
+%% Sede ||--o| Contacto: ""
+%% Usuario ||--o{ Curso: ""
+%% Domicilio }|--|| Localidad: ""
+%% Localidad }|--|| Provincia: ""
+%% Contacto ||--|| Usuario: ""
+%% Contacto |o--|| Telefono: ""
+%% Contacto |o--|| Mail: ""
 
 
-%% Usuario: representa tanto al alumno como al profesor
-%% Un Rol de Usuario lo pueden tener varios Usuarios
+%% %% Usuario: representa tanto al alumno como al profesor
+%% %% Un Rol de Usuario lo pueden tener varios Usuarios
