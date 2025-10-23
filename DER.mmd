@@ -71,6 +71,11 @@ erDiagram
   %%   DATETIME2 fecha_vigencia_desde "length:6"
   %% }
 
+  Modulo_X_Curso{
+    bigint id_modulo PK, FK
+    bigint id_curso PK, FK
+  }
+
   Modulo {
     bigint id PK
     varchar Modulo_Nombre "length: 255"
@@ -238,10 +243,11 @@ Curso |o--o| Sede: ""
 Curso |o--|| Categoria: ""
 Curso ||--|{ Curso_Dia: ""
 Profesor ||--o{ Curso: ""
+Curso ||--|{ Modulo_X_Curso: ""
+Modulo ||--|{ Modulo_X_Curso: ""
 
 DiaSemana ||--o{ Curso_Dia: ""
 %% Curso ||--|{ Precio_Historico: ""
-Curso ||--|{ Modulo: ""
 
 %% Entidad Intermedia: Inscripción
 Curso ||--o{ Inscripcion: ""
