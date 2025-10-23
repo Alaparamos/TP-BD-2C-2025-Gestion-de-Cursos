@@ -22,6 +22,7 @@ erDiagram
     varchar Alumno_Direccion "length: 255"
     varchar Alumno_Telefono "length: 255"
     varchar Alumno_Mail "length: 255"
+    bigint id_localidad FK
   }
 
   %% Tabla Maestra Curso
@@ -86,6 +87,7 @@ erDiagram
     NVARCHAR Profesor_Direccion "length: 255"
     NVARCHAR Profesor_Telefono "length: 255"
     NVARCHAR Profesor_Mail "length: 255"
+    id_localidad bigint FK
   }
 
   %% Tabla Maestra  Sede
@@ -219,6 +221,12 @@ erDiagram
     %% Documentación: Añadir constraint de CHECK(nota <= 10 AND nota >= 1)
     bigint Encuesta_Nota
   }
+
+%% Relaciones de la Tabla Alumno
+Alumno }o--|| Localidad: ""
+
+%% Relaciones de la Tabla Profesor
+Profesor }o--|| Localidad: ""
 
 %% Relaciones de la Tabla Sede
 Sede }o--|| Localidad: ""
