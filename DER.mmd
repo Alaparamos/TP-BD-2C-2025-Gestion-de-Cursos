@@ -22,6 +22,7 @@ erDiagram
     varchar Alumno_Direccion "length: 255"
     varchar Alumno_Telefono "length: 255"
     varchar Alumno_Mail "length: 255"
+    bigint id_localidad FK
   }
 
   %% Tabla Maestra Curso
@@ -39,7 +40,7 @@ erDiagram
     decimal Curso_PrecioMensual "length: 38, 2"
     bigint id_categoria FK
     bigint id_sede FK
-    NVARCHAR id_profesor FK
+    NVARCHAR id_profesor FK "length:255"
   }
 
   %% Tablas Paramétricas de Curso
@@ -70,6 +71,11 @@ erDiagram
   %%   DATETIME2 fecha_vigencia_desde "length:6"
   %% }
 
+  Modulo_X_Curso{
+    bigint id_modulo PK, FK
+    bigint id_curso PK, FK
+  }
+
   Modulo {
     bigint id PK
     varchar Modulo_Nombre "length: 255"
@@ -82,10 +88,12 @@ erDiagram
     NVARCHAR Profesor_id PK "length:255"
     NVARCHAR Profesor_Nombre "length: 255"
     NVARCHAR Profesor_Apellido "length: 255"
+    NVARCHAR Profesor_Dni "length: 255"
     DATETIME2 Profesor_FechaNacimiento "length: 6"
     NVARCHAR Profesor_Direccion "length: 255"
     NVARCHAR Profesor_Telefono "length: 255"
     NVARCHAR Profesor_Mail "length: 255"
+    id_localidad bigint FK
   }
 
   %% Tabla Maestra  Sede
@@ -220,6 +228,12 @@ erDiagram
     bigint Encuesta_Nota
   }
 
+%% Relaciones de la Tabla Alumno
+Alumno }o--|| Localidad: ""
+
+%% Relaciones de la Tabla Profesor
+Profesor }o--|| Localidad: ""
+
 %% Relaciones de la Tabla Sede
 Sede }o--|| Localidad: ""
 Localidad }|--|| Provincia: ""
@@ -230,10 +244,11 @@ Curso |o--o| Sede: ""
 Curso |o--|| Categoria: ""
 Curso ||--|{ Curso_Dia: ""
 Profesor ||--o{ Curso: ""
+Curso ||--|{ Modulo_X_Curso: ""
+Modulo ||--|{ Modulo_X_Curso: ""
 
 DiaSemana ||--o{ Curso_Dia: ""
 %% Curso ||--|{ Precio_Historico: ""
-Curso ||--|{ Modulo: ""
 
 %% Entidad Intermedia: Inscripción
 Curso ||--o{ Inscripcion: ""
