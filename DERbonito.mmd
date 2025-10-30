@@ -1,0 +1,244 @@
+erDiagram
+
+    %% ==================================
+    %%         ENTIDADES MAESTRAS
+    %% ==================================
+
+    Alumno {
+        bigint legajo PK "%% TODO: DECIDIR CÓMO TOMAMOS EL LEGAJO"
+        bigint Alumno_Dni
+        varchar Alumno_Nombre "length: 255"
+        varchar Alumno_Apellido "length: 255"
+        DATETIME2 Alumno_FechaNacimiento "length: 6"
+        varchar Alumno_Direccion "length: 255"
+        varchar Alumno_Telefono "length: 255"
+        varchar Alumno_Mail "length: 255"
+    }
+
+    Profesor {
+        NVARCHAR Profesor_id PK "length: 255"
+        NVARCHAR Profesor_Nombre "length: 255"
+        NVARCHAR Profesor_Apellido "length: 255"
+        DATETIME2 Profesor_FechaNacimiento "length: 6"
+        NVARCHAR Profesor_Direccion "length: 255"
+        NVARCHAR Profesor_Telefono "length: 255"
+        NVARCHAR Profesor_Mail "length: 255"
+    }
+
+    Institucion {
+        bigint id PK
+        %% Usamos clave subrogada para no usar el CUIT como PK
+        NVARCHAR Institucion_Nombre "length(255)"
+        NVARCHAR Institucion_RazonSocial "length(255)"
+        NVARCHAR Institucion_Cuit "length(255)"
+    }
+
+    Sede {
+        bigint id PK
+        %% AGREGADO id
+        NVARCHAR Sede_Nombre "length: 255"
+        NVARCHAR Sede_Telefono "length(255)"
+        NVARCHAR Sede_Mail "length(255)"
+        bigint id_localidad FK
+        bigint id_institucion FK
+    }
+
+    Curso {
+        bigint Curso_Codigo PK
+        varchar Curso_Nombre "length: 255"
+        varchar Curso_Descripcion "length: 255"
+        varchar Curso_Turno "length: 255, CHECK('mañana', 'tarde', 'noche')"
+        DATETIME2 Curso_FechaInicio "length: 6"
+        DATETIME2 Curso_FechaFin "length: 6"
+        bigint Curso_DuracionMeses
+        %% Calculable, pero viene de la Tabla Maestra
+        decimal Curso_PrecioMensual "length: 38, 2"
+        bigint id_categoria FK
+        bigint id_sede FK
+        NVARCHAR id_profesor FK
+    }
+
+    %% ==================================
+    %%      ENTIDADES PARAMÉTRICAS
+    %% ==================================
+
+    Provincia {
+        bigint id_provincia PK
+        NVARCHAR provincia_nombre "length: 255"
+    }
+
+    Localidad {
+        bigint id_localidad PK
+        NVARCHAR localidad_nombre "length: 255"
+        bigint id_provincia FK
+    }
+
+    Categoria {
+        bigint id_categoria PK
+        varchar nombre "length: 255"
+    }
+
+    DiaSemana {
+        smallint id PK
+        varchar dia "length: 255, CHECK('Lunes', ..., 'Domingo')"
+    }
+
+    Modulo {
+        bigint id PK
+        varchar Modulo_Nombre "length: 255"
+        varchar Modulo_Descripcion "length: 255"
+        bigint id_curso FK
+    }
+
+    %% ========================================
+    %%      ENTIDADES TRANSACCIONALES
+    %% ========================================
+
+    Inscripcion {
+        bigint Inscripcion_Numero PK
+        DATETIME2 Inscripcion_Fecha "length: 6"
+        varchar Inscripcion_Estado "length: 255, CHECK('pendiente', 'aprobada', 'rechazada')"
+        DATETIME2 Inscripcion_FechaRespuesta "length: 6"
+        bigint id_alumno FK
+        bigint id_curso FK
+    }
+
+    Factura {
+        bigint Factura_Numero PK
+        DATETIME2 Factura_FechaEmision "length: 6"
+        DATETIME2 Factura_FechaVencimiento "length: 6"
+        decimal Factura_Total "length: 18, 2"
+        bigint legajo_alumno FK
+    }
+
+    Detalle_Factura {
+        bigint id PK
+        %% Clave subrogada
+        bigint Factura_Numero FK
+        bigint id_curso FK
+        bigint periodo_Anio
+        bigint periodo_Mes
+        decimal Detalle_Factura_Importe "length: 18, 2"
+    }
+
+    Pago {
+        bigint id PK
+        DATETIME2 Pago_Fecha "length: 6"
+        decimal Pago_Importe "length: 18, 2"
+        varchar Pago_MedioPago "length: 255, CHECK('efectivo', 'tarjeta', ...)"
+        bigint id_factura FK
+    }
+
+    Evaluacion_Curso {
+        bigint id PK
+        DATETIME2 Evaluacion_Curso_fechaEvaluacion "length: 6"
+        bigint id_modulo FK
+    }
+
+    Resultado_Evaluacion {
+        bigint id_evaluacion_curso PK, FK
+        bigint legajo_alumno PK, FK
+        bigint Evaluacion_Curso_Nota
+        %% NULL si estuvo ausente
+        bit Evaluacion_Curso_Presente
+        bigint Evaluacion_Curso_Instancia
+    }
+
+    Trabajo_Practico {
+        bigint id PK
+        %% Clave subrogada por si se recursa
+        DATETIME2 Trabajo_Practico_FechaEvaluacion "length: 6"
+        bigint Trabajo_Practico_Nota
+        bigint legajo_alumno FK
+        bigint id_curso FK
+    }
+
+    ExamenFinal {
+        bigint id PK
+        DATETIME2 Examen_Final_Fecha "length: 6"
+        varchar Examen_Final_Hora "length: 255"
+        bigint id_curso FK
+    }
+
+    Inscripcion_Final {
+        bigint Inscripcion_Final_Nro PK
+        DATETIME2 Inscripcion_Final_Fecha "length: 6"
+        bigint legajo_alumno FK
+        bigint id_examen_final FK
+    }
+
+    Evaluacion_Final {
+        bigint id PK
+        bigint Evaluacion_Final_Nota
+        %% NULL si estuvo ausente
+        bit Evaluacion_Final_Presente
+        bigint id_inscripcion_final FK
+        NVARCHAR id_profesor FK
+    }
+
+    Encuesta {
+        bigint id PK
+        datetime2 Encuesta_FechaRegistro "length: 6"
+        varchar Encuesta_Observacion "length: 255"
+        bigint id_curso FK
+    }
+
+    Detalle {
+        bigint id PK
+        varchar Encuesta_Pregunta "length: 255"
+        bigint Encuesta_Nota
+        %% CHECK(nota >= 1 AND nota <= 10)
+        bigint id_encuesta FK
+    }
+
+    %% ========================================
+    %%          ENTIDADES DE UNION
+    %% ========================================
+
+    Curso_Dia {
+        smallint id_dia_semana PK, FK
+        bigint id_curso PK, FK
+    }
+
+    %% ########################################
+    %% #            RELACIONES              #
+    %% ########################################
+
+    %% --- Relaciones Estructurales (Institución, Sede, Localidad) ---
+    Institucion ||--|{ Sede: "contiene"
+    Sede }o--|| Localidad: "ubicada en"
+    Provincia ||--|{ Localidad: "contiene"
+
+    %% --- Relaciones del Curso ---
+    Categoria ||--o{ Curso: "agrupa"
+    Sede ||--|{ Curso: "se dicta en"
+    Profesor ||--|{ Curso: "dicta"
+    Curso ||--|{ Modulo: "compuesto por"
+    Curso ||--|{ Curso_Dia: "se dicta los días"
+    DiaSemana ||--o{ Curso_Dia: "asociado a"
+
+    %% --- Relaciones del Alumno (Inscripciones y Evaluaciones) ---
+    Alumno ||--|{ Inscripcion: "realiza"
+    Curso ||--|{ Inscripcion: "recibe"
+    Alumno ||--|{ Trabajo_Practico: "entrega"
+    Curso ||--|{ Trabajo_Practico: "asigna"
+    Alumno ||--o{ Inscripcion_Final: "se inscribe a"
+    ExamenFinal ||--|{ Inscripcion_Final: "recibe"
+
+    %% --- Relaciones de Evaluación Específicas ---
+    Modulo ||--|{ Evaluacion_Curso: "tiene"
+    Evaluacion_Curso ||--|{ Resultado_Evaluacion: "produce"
+    Alumno ||--|{ Resultado_Evaluacion: "obtiene"
+    Inscripcion_Final ||--o| Evaluacion_Final: "resulta en"
+    Profesor ||--o{ Evaluacion_Final: "califica"
+    Curso ||--|{ ExamenFinal: "tiene"
+
+    %% --- Relaciones Financieras (Facturación y Pagos) ---
+    Alumno ||--|{ Factura: "recibe"
+    Factura ||--|{ Detalle_Factura: "detalla"
+    Curso ||--o{ Detalle_Factura: "corresponde a"
+    Factura ||--o| Pago: "se cancela con"
+
+    %% --- Relaciones de Encuestas ---
+    Curso ||--o{ Encuesta: "es evaluado en"
+    Encuesta ||--|{ Detalle: "contiene"

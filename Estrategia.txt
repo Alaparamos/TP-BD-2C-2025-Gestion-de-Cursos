@@ -1,0 +1,72 @@
+Documento de Estrategia y Suposiciones – Grupo X
+1. Consideraciones Generales
+
+Se partió de la tabla maestra provista, la cual presentaba datos desnormalizados (ej.: repetición de domicilios de alumnos, provincias escritas de distintas formas, fechas inconsistentes).
+
+Se aplicó normalización hasta 3FN, eliminando redundancias y garantizando integridad referencial.
+
+Se crearon claves sustitutas (ID autonuméricos) para las entidades principales (Alumno_ID, Curso_Codigo, Factura_Numero, etc.), para simplificar las relaciones y evitar dependencias de atributos no estables.
+
+Todas las claves primarias y foráneas están claramente definidas en el DER.
+
+2. Suposiciones de Negocio
+
+Alumno: se modeló como entidad independiente con datos personales (DNI, dirección, teléfono, mail). Se asumió que el DNI es único, pero por posibles inconsistencias en la tabla maestra se creó un campo Alumno_ID como clave primaria.
+
+Profesor: se maneja como entidad propia con información personal y su localidad. Puede dictar múltiples cursos.
+
+Curso: tiene relación con una sede, un profesor, un turno y una categoría. Se asumió que un curso corresponde a una única sede y profesor.
+
+Módulos: los cursos se dividen en módulos. Se creó una tabla intermedia Modulo_X_Curso para reflejar la relación muchos a muchos entre curso y módulos.
+
+Inscripción: un alumno puede inscribirse a múltiples cursos. Cada inscripción guarda estado (pendiente, aprobada, rechazada) y fecha de respuesta.
+
+Evaluaciones de Cursada: se registran por módulo. Incluyen nota, presente/ausente y número de instancia.
+
+Trabajos Prácticos: se registran como evaluación independiente, vinculados a curso y alumno.
+
+Finales: un curso puede tener varios finales. Se creó Inscripción_Final y Evaluación_Final para separar inscripción del resultado.
+
+Facturación:
+
+Una factura puede incluir varios cursos (detalle).
+
+Un pago corresponde a una factura.
+
+Se asumió que un pago no puede dividirse en varias facturas.
+
+Encuestas: se modeló Encuesta y Detalle_Encuesta. Cada curso tiene encuestas con varias preguntas. Se almacenan respuestas numéricas y comentarios.
+
+3. Decisiones Técnicas
+
+Fechas: todas se almacenan en tipo datetime2(0) para compatibilidad con SQL Server 2019.
+
+Importes: definidos como decimal(18,2) para evitar pérdida de precisión.
+
+Strings: se usó varchar(255) por defecto salvo en claves o códigos cortos.
+
+Integridad referencial: todas las relaciones tienen restricciones de FOREIGN KEY con ON DELETE CASCADE solo donde corresponde (ej.: detalle de factura).
+
+Índices:
+
+Índices únicos en atributos de búsqueda frecuente (Alumno.DNI, Profesor.DNI).
+
+Índices en claves foráneas para optimizar joins.
+
+Stored Procedures: definidos para la migración de la tabla maestra hacia el nuevo modelo (insertando en orden correcto: Provincia → Localidad → Alumno → Profesor → Curso → Inscripción, etc.).
+
+Triggers: no se implementaron salvo los necesarios para asegurar consistencia (ej.: no permitir notas fuera del rango 1–10).
+
+4. Manejo de Inconsistencias
+
+DNIs duplicados se manejan asignando IDs internos sin intentar unificar registros.
+
+Fechas invertidas (fecha_inicio > fecha_fin) se conservaron pero se documentan como anomalías.
+
+Valores nulos en teléfonos, mails y direcciones se permitieron (nullable).
+
+5. Extensiones posibles
+
+Se podría agregar histórico de cambios en inscripciones o pagos.
+
+Se podrían normalizar direcciones con una tabla adicional de Domicilio.
