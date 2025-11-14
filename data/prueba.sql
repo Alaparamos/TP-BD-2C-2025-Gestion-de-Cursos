@@ -1,0 +1,69 @@
+--SELECT * FROM [NORMALIZADOS].[Provincia];
+--SELECT * FROM [NORMALIZADOS].[Localidad]
+--ORDER BY Id_Provincia;
+--SELECT * FROM [NORMALIZADOS].[Institucion];
+--SELECT * FROM [NORMALIZADOS].[Sede];
+--SELECT * FROM [NORMALIZADOS].[Alumno];
+--SELECT * FROM [NORMALIZADOS].[Profesor];
+--SELECT * FROM [NORMALIZADOS].[Categoria];
+--SELECT * FROM [NORMALIZADOS].[Curso];
+--SELECT * FROM [NORMALIZADOS].[Inscripcion];
+--SELECT * FROM [NORMALIZADOS].[Modulo];
+--SELECT * FROM [NORMALIZADOS].[Modulo_x_Curso];
+--SELECT * FROM [NORMALIZADOS].[Evaluacion_Curso];
+--SELECT * FROM [NORMALIZADOS].[Evaluacion_x_Alumno];
+--SELECT * FROM [NORMALIZADOS].[Trabajo_Practico];
+--SELECT * FROM [NORMALIZADOS].[Examen_Final];
+--SELECT * FROM [NORMALIZADOS].[Evaluacion_Final];
+--SELECT * FROM [NORMALIZADOS].[Inscripcion_Final];
+--SELECT * FROM [NORMALIZADOS].[Factura];
+--SELECT * FROM [NORMALIZADOS].[Detalle_Factura];
+--SELECT * FROM [NORMALIZADOS].[Pago];
+--SELECT * FROM [NORMALIZADOS].[Encuesta];
+--SELECT * FROM [NORMALIZADOS].[Detalle_Encuesta]
+--ORDER BY Encuesta_ID;
+--GO
+
+SELECT 'Provincia' AS Tabla, COUNT(*) AS Cantidad FROM [NORMALIZADOS].[Provincia]
+UNION ALL
+SELECT 'Localidad', COUNT(*) FROM [NORMALIZADOS].[Localidad]
+UNION ALL
+SELECT 'Institucion', COUNT(*) FROM [NORMALIZADOS].[Institucion]
+UNION ALL
+SELECT 'Sede', COUNT(*) FROM [NORMALIZADOS].[Sede]
+UNION ALL
+SELECT 'Alumno', COUNT(*) FROM [NORMALIZADOS].[Alumno]
+UNION ALL
+SELECT 'Profesor', COUNT(*) FROM [NORMALIZADOS].[Profesor]
+UNION ALL
+SELECT 'Categoria', COUNT(*) FROM [NORMALIZADOS].[Categoria]
+UNION ALL
+SELECT 'Curso', COUNT(*) FROM [NORMALIZADOS].[Curso]
+UNION ALL
+SELECT 'Inscripcion', COUNT(*) FROM [NORMALIZADOS].[Inscripcion]
+UNION ALL
+SELECT 'Modulo', COUNT(*) FROM [NORMALIZADOS].[Modulo]
+UNION ALL
+SELECT 'Modulo_x_Curso', COUNT(*) FROM [NORMALIZADOS].[Modulo_x_Curso]
+UNION ALL
+SELECT 'Evaluacion_Curso', COUNT(*) FROM [NORMALIZADOS].[Evaluacion_Curso]
+UNION ALL
+SELECT 'Evaluacion_x_Alumno', COUNT(*) FROM [NORMALIZADOS].[Evaluacion_x_Alumno]
+UNION ALL
+SELECT 'Trabajo_Practico', COUNT(*) FROM [NORMALIZADOS].[Trabajo_Practico]
+UNION ALL
+SELECT 'Examen_Final', COUNT(*) FROM [NORMALIZADOS].[Examen_Final]
+UNION ALL
+SELECT 'Evaluacion_Final', COUNT(*) FROM [NORMALIZADOS].[Evaluacion_Final]
+UNION ALL
+SELECT 'Inscripcion_Final', COUNT(*) FROM [NORMALIZADOS].[Inscripcion_Final]
+UNION ALL
+SELECT 'Factura', COUNT(*) FROM [NORMALIZADOS].[Factura]
+UNION ALL
+SELECT 'Detalle_Factura', COUNT(*) FROM [NORMALIZADOS].[Detalle_Factura]
+UNION ALL
+SELECT 'Pago', COUNT(*) FROM [NORMALIZADOS].[Pago]
+UNION ALL
+SELECT 'Encuesta', COUNT(*) FROM [NORMALIZADOS].[Encuesta]
+UNION ALL
+SELECT 'Detalle_Encuesta', COUNT(*) FROM [NORMALIZADOS].[Detalle_Encuesta];

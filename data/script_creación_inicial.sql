@@ -4,7 +4,7 @@ GO
 -- Drop de los indices
 IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Curso_Profesor')
     DROP INDEX IX_Curso_Profesor ON [NORMALIZADOS].[Curso];
-
+GO
 IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Curso_Sede')
     DROP INDEX IX_Curso_Sede ON [NORMALIZADOS].[Curso];
 GO
@@ -47,6 +47,7 @@ DROP PROCEDURE IF EXISTS
     [NORMALIZADOS].[sp_migrar_cursos],
     [NORMALIZADOS].[sp_migrar_modulo],
     [NORMALIZADOS].[sp_migrar_modulo_x_curso],
+    [NORMALIZADOS].[sp_migrar_modulo_x_curso2],
     [NORMALIZADOS].[sp_migrar_evaluacion_curso],
     [NORMALIZADOS].[sp_migrar_evaluacion_x_alumno],
     [NORMALIZADOS].[sp_migrar_trabajo_practico],
@@ -188,7 +189,7 @@ CREATE TABLE [NORMALIZADOS].[Modulo_x_Curso] (
 GO
 
 -- Tabla Evaluacion_Curso
-create table [NORMALIZADOS].[Evaluacion_Curso](
+CREATE TABLE [NORMALIZADOS].[Evaluacion_Curso](
     Evaluacion_Curso_ID  BIGINT IDENTITY(1,1) PRIMARY KEY,
     Evaluacion_Curso_fechaEvaluacion DATETIME2(6) NOT NULL,
     Modulo_ID BIGINT FOREIGN KEY REFERENCES [NORMALIZADOS].[Modulo](Modulo_ID)
@@ -473,33 +474,31 @@ BEGIN
 END
 GO
 
--- EVALUACION CURSO
+
 CREATE PROCEDURE [NORMALIZADOS].sp_migrar_evaluacion_curso AS
 BEGIN
     INSERT INTO [NORMALIZADOS].[Evaluacion_Curso] (Evaluacion_Curso_fechaEvaluacion, Modulo_ID)
-    SELECT DISTINCT 
-        Evaluacion_Curso_fechaEvaluacion,
-        modulo.Modulo_ID AS Modulo_ID
+    SELECT Evaluacion_Curso_fechaEvaluacion, modulo.Modulo_ID
     FROM [GD2C2025].[gd_esquema].[Maestra] maestra
         INNER JOIN [NORMALIZADOS].[Modulo] modulo ON modulo.Modulo_Nombre = maestra.Modulo_Nombre
-    WHERE Evaluacion_Curso_fechaEvaluacion IS NOT NULL
+        INNER JOIN [NORMALIZADOS].[Modulo_x_Curso] mxc ON mxc.Modulo_ID = modulo.Modulo_ID AND maestra.Curso_Codigo = mxc.Curso_Codigo
+    WHERE maestra.Modulo_Nombre IS NOT NULL
 END
 GO
 
--- EVALUACION X ALUMNO
-CREATE PROCEDURE [NORMALIZADOS].sp_migrar_evaluacion_x_alumno AS
+
+CREATE OR ALTER PROCEDURE [NORMALIZADOS].sp_migrar_evaluacion_x_alumno AS
 BEGIN
     INSERT INTO [NORMALIZADOS].[Evaluacion_x_Alumno] (Evaluacion_Curso_ID, Alumno_Legajo, Evaluacion_Nota, Evaluacion_Presente, Evaluacion_Instancia)
-    SELECT DISTINCT 
-        evaluacion.Evaluacion_Curso_ID AS Evaluacion_Curso_ID,
-        alumno.Alumno_Legajo AS Alumno_Legajo,
-        Evaluacion_Curso_Nota,
-        Evaluacion_Curso_Presente,
-        Evaluacion_Curso_Instancia
-    FROM [GD2C2025].[gd_esquema].[Maestra] maestra
-        INNER JOIN [NORMALIZADOS].[Evaluacion_Curso] evaluacion ON evaluacion.Evaluacion_Curso_fechaEvaluacion = maestra.Evaluacion_Curso_fechaEvaluacion
-        INNER JOIN [NORMALIZADOS].[Alumno] alumno ON alumno.Alumno_Legajo = maestra.Alumno_Legajo
-    WHERE maestra.Evaluacion_Curso_Nota IS NOT NULL
+    SELECT
+    (SELECT e.Modulo_ID FROM [NORMALIZADOS].[Modulo] e WHERE e.Modulo_Nombre = m.Modulo_Nombre) AS Evaluacion_Curso_ID,
+    m.Alumno_Legajo,
+    m.Evaluacion_Curso_Nota,
+    m.Evaluacion_Curso_Presente,
+    m.Evaluacion_Curso_Instancia
+    FROM [GD2C2025].[gd_esquema].[Maestra] m
+    WHERE m.Alumno_Legajo IN (SELECT Alumno_Legajo FROM [NORMALIZADOS].[Alumno]) AND m.Evaluacion_Curso_Presente IS NOT NULL
+        AND m.Evaluacion_Curso_fechaEvaluacion IS NOT NULL
 END
 GO
 
@@ -615,69 +614,75 @@ BEGIN
 END
 GO
 
--- ENCUESTA
+
 CREATE PROCEDURE [NORMALIZADOS].sp_migrar_encuesta AS
 BEGIN
-    INSERT INTO [NORMALIZADOS].[Encuesta] (Curso_Codigo, Encuesta_FechaRegistro, Encuesta_Observacion)
-    SELECT DISTINCT 
-        curso.Curso_Codigo AS Curso_Codigo,
-        Encuesta_FechaRegistro,
-        Encuesta_Observacion
-    FROM [GD2C2025].[gd_esquema].[Maestra] maestra
-        INNER JOIN [NORMALIZADOS].[Curso] curso ON curso.Curso_Codigo = maestra.Curso_Codigo
-    WHERE Encuesta_FechaRegistro IS NOT NULL
-END
-GO
+    -- Truco: Insertamos las encuestas asegurando orden para que coincidan con el detalle despues
+    -- O mejor aun, definimos que una Encuesta es unica por fila de la maestra.
+    -- Como no tenemos ID, vamos a confiar en que el orden de insercion se mantiene o usaremos un cursor.
+    
+    -- PERO, la forma mas ROBUSTA en SQL para TPs es esta:
+    -- 1. Insertamos en Encuesta mirando la Maestra.
+    -- 2. En el detalle, como no podemos volver a linkear facil (es anonima), 
+    --    necesitamos haber guardado una referencia.
+    
+    -- SOLUCION SIMPLIFICADA: Vamos a cambiar la estrategia de inserción.
+    -- Paso 1: Crear una tabla temporal con ID autogenerado y los datos de la maestra
+    CREATE TABLE #EncuestasTemp (
+        Temp_ID BIGINT IDENTITY(1,1),
+        Curso_Codigo BIGINT,
+        Fecha DATETIME2(6),
+        Obs VARCHAR(255),
+        Preg1 VARCHAR(255), Nota1 INT,
+        Preg2 VARCHAR(255), Nota2 INT,
+        Preg3 VARCHAR(255), Nota3 INT,
+        Preg4 VARCHAR(255), Nota4 INT
+    );
 
--- DETALLE ENCUESTA
-CREATE PROCEDURE [NORMALIZADOS].sp_migrar_detalle_encuesta AS
-BEGIN
+    -- Insertamos TODAS las encuestas (sin distinct de fecha/curso, una por fila)
+    INSERT INTO #EncuestasTemp (Curso_Codigo, Fecha, Obs, Preg1, Nota1, Preg2, Nota2, Preg3, Nota3, Preg4, Nota4)
+    SELECT 
+        Curso_Codigo, 
+        Encuesta_FechaRegistro, 
+        Encuesta_Observacion,
+        Encuesta_Pregunta1, Encuesta_Nota1,
+        Encuesta_Pregunta2, Encuesta_Nota2,
+        Encuesta_Pregunta3, Encuesta_Nota3,
+        Encuesta_Pregunta4, Encuesta_Nota4
+    FROM [GD2C2025].[gd_esquema].[Maestra]
+    WHERE Encuesta_FechaRegistro IS NOT NULL 
+      AND Encuesta_Nota1 IS NOT NULL; -- Aseguramos que sea una fila de encuesta valida
+
+    -- Paso 2: Migrar a la tabla ENCUESTA oficial usando IDENTITY_INSERT para mantener los IDs generados
+    SET IDENTITY_INSERT [NORMALIZADOS].[Encuesta] ON;
+
+    INSERT INTO [NORMALIZADOS].[Encuesta] (Encuesta_ID, Curso_Codigo, Encuesta_FechaRegistro, Encuesta_Observacion)
+    SELECT Temp_ID, Curso_Codigo, Fecha, Obs
+    FROM #EncuestasTemp;
+
+    SET IDENTITY_INSERT [NORMALIZADOS].[Encuesta] OFF;
+
+    -- Paso 3: Migrar los DETALLES "despivoteando" las columnas (Preg1, Preg2..) a filas
+    -- Pregunta 1
     INSERT INTO [NORMALIZADOS].[Detalle_Encuesta] (Encuesta_ID, Encuesta_Pregunta, Encuesta_Nota)
-    SELECT DISTINCT 
-        encuesta.Encuesta_ID AS Encuesta_ID,
-        Encuesta_Pregunta1 AS Encuesta_Pregunta,
-        Encuesta_Nota1 AS Encuesta_Nota
-    FROM [GD2C2025].[gd_esquema].[Maestra] maestra
-        INNER JOIN [NORMALIZADOS].[Encuesta] encuesta ON encuesta.Curso_Codigo = maestra.Curso_Codigo
-    WHERE Encuesta_Nota1 IS NOT NULL
+    SELECT Temp_ID, Preg1, Nota1 FROM #EncuestasTemp WHERE Preg1 IS NOT NULL;
 
-    UNION ALL
+    -- Pregunta 2
+    INSERT INTO [NORMALIZADOS].[Detalle_Encuesta] (Encuesta_ID, Encuesta_Pregunta, Encuesta_Nota)
+    SELECT Temp_ID, Preg2, Nota2 FROM #EncuestasTemp WHERE Preg2 IS NOT NULL;
 
-    SELECT DISTINCT 
-        encuesta.Encuesta_ID AS Encuesta_ID,
-        Encuesta_Pregunta2 AS Encuesta_Pregunta,
-        Encuesta_Nota2 AS Encuesta_Nota
-    FROM [GD2C2025].[gd_esquema].[Maestra] maestra
-        INNER JOIN [NORMALIZADOS].[Encuesta] encuesta ON encuesta.Curso_Codigo = maestra.Curso_Codigo
-    WHERE Encuesta_Nota2 IS NOT NULL
+    -- Pregunta 3
+    INSERT INTO [NORMALIZADOS].[Detalle_Encuesta] (Encuesta_ID, Encuesta_Pregunta, Encuesta_Nota)
+    SELECT Temp_ID, Preg3, Nota3 FROM #EncuestasTemp WHERE Preg3 IS NOT NULL;
 
-    UNION ALL
+    -- Pregunta 4
+    INSERT INTO [NORMALIZADOS].[Detalle_Encuesta] (Encuesta_ID, Encuesta_Pregunta, Encuesta_Nota)
+    SELECT Temp_ID, Preg4, Nota4 FROM #EncuestasTemp WHERE Preg4 IS NOT NULL;
 
-    SELECT DISTINCT 
-        encuesta.Encuesta_ID AS Encuesta_ID,
-        Encuesta_Pregunta3 AS Encuesta_Pregunta,
-        Encuesta_Nota3 AS Encuesta_Nota
-    FROM [GD2C2025].[gd_esquema].[Maestra] maestra
-        INNER JOIN [NORMALIZADOS].[Encuesta] encuesta ON encuesta.Curso_Codigo = maestra.Curso_Codigo
-    WHERE Encuesta_Nota3 IS NOT NULL
-
-    UNION ALL
-
-    SELECT DISTINCT 
-        encuesta.Encuesta_ID AS Encuesta_ID,
-        Encuesta_Pregunta4 AS Encuesta_Pregunta,
-        Encuesta_Nota4 AS Encuesta_Nota
-    FROM [GD2C2025].[gd_esquema].[Maestra] maestra
-        INNER JOIN [NORMALIZADOS].[Encuesta] encuesta ON encuesta.Curso_Codigo = maestra.Curso_Codigo
-    WHERE Encuesta_Nota4 IS NOT NULL
+    -- Limpieza
+    DROP TABLE #EncuestasTemp;
 END
 GO
-
--------------------------------------------------------------------------------------------------
--------------------------------------------------------------------------------------------------
------------------- EJECUCION DE LOS PROCEDIMIENTOS ALMACENADOS PARA MIGRAR DATOS ----------------
--------------------------------------------------------------------------------------------------
--------------------------------------------------------------------------------------------------
 
 EXEC [NORMALIZADOS].sp_migrar_localidades_provincias;
 EXEC [NORMALIZADOS].sp_migrar_institucion;
@@ -699,31 +704,3 @@ EXEC [NORMALIZADOS].sp_migrar_factura;
 EXEC [NORMALIZADOS].sp_migrar_detalle_factura;
 EXEC [NORMALIZADOS].sp_migrar_pago;
 EXEC [NORMALIZADOS].sp_migrar_encuesta;
-EXEC [NORMALIZADOS].sp_migrar_detalle_encuesta;
-
-
---SELECT * FROM [NORMALIZADOS].[Provincia];
---SELECT * FROM [NORMALIZADOS].[Localidad]
---ORDER BY Id_Provincia;
---SELECT * FROM [NORMALIZADOS].[Institucion];
---SELECT * FROM [NORMALIZADOS].[Sede];
---SELECT * FROM [NORMALIZADOS].[Alumno];
---SELECT * FROM [NORMALIZADOS].[Profesor];
---SELECT * FROM [NORMALIZADOS].[Categoria];
---SELECT * FROM [NORMALIZADOS].[Curso];
---SELECT * FROM [NORMALIZADOS].[Inscripcion];
---SELECT * FROM [NORMALIZADOS].[Modulo];
---SELECT * FROM [NORMALIZADOS].[Modulo_x_Curso];
---SELECT * FROM [NORMALIZADOS].[Evaluacion_Curso];
---SELECT * FROM [NORMALIZADOS].[Evaluacion_x_Alumno];
---SELECT * FROM [NORMALIZADOS].[Trabajo_Practico];
---SELECT * FROM [NORMALIZADOS].[Examen_Final];
---SELECT * FROM [NORMALIZADOS].[Evaluacion_Final];
---SELECT * FROM [NORMALIZADOS].[Inscripcion_Final];
---SELECT * FROM [NORMALIZADOS].[Factura];
---SELECT * FROM [NORMALIZADOS].[Detalle_Factura];
---SELECT * FROM [NORMALIZADOS].[Pago];
---SELECT * FROM [NORMALIZADOS].[Encuesta];
---SELECT * FROM [NORMALIZADOS].[Detalle_Encuesta]
---ORDER BY Encuesta_ID;
---GO
