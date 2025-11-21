@@ -47,7 +47,6 @@ DROP PROCEDURE IF EXISTS
     [NORMALIZADOS].[sp_migrar_cursos],
     [NORMALIZADOS].[sp_migrar_modulo],
     [NORMALIZADOS].[sp_migrar_modulo_x_curso],
-    [NORMALIZADOS].[sp_migrar_modulo_x_curso2],
     [NORMALIZADOS].[sp_migrar_evaluacion_curso],
     [NORMALIZADOS].[sp_migrar_evaluacion_x_alumno],
     [NORMALIZADOS].[sp_migrar_trabajo_practico],
