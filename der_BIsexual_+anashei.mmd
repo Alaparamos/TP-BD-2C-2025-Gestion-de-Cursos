@@ -1,0 +1,117 @@
+
+
+%% 
+erDiagram
+    %% DIMENSIONES
+    BI_DIM_TIEMPO {
+        int TIEMPO_ID PK
+        int ANIO
+        int MES
+        int CUATRIMESTRE
+    }
+    BI_DIM_SEDE {
+        bigint SEDE_ID PK
+        string SEDE_NOMBRE
+    }
+    BI_DIM_CURSO {
+        bigint CURSO_CODIGO PK
+        string CURSO_NOMBRE
+        string CURSO_CATEGORIA
+        string CURSO_TURNO
+    }
+    BI_DIM_ETARIO_ALUMNO {
+        bigint ALUMNO_LEGAJO PK
+        string ALUMNO_RANGO_ETARIO
+    }
+    BI_DIM_ETARIO_PROFESOR {
+        bigint PROFESOR_ID PK
+        string PROFESOR_RANGO_ETARIO
+    }
+
+    %% HECHOS
+    BI_HECHOS_INSCRIPCION {
+        int TIEMPO_ID FK
+        bigint SEDE_ID FK
+        bigint CURSO_CODIGO FK
+        bigint ALUMNO_LEGAJO FK
+        int CANTIDAD_INSCRIPCIONES
+        string ESTADO_INSCRIPCION
+    }
+    
+    BI_HECHOS_CURSADA {
+        int TIEMPO_INICIO_ID FK
+        bigint SEDE_ID FK
+        bigint CURSO_CODIGO FK
+        int CURSADA_APROBADA
+        int TIEMPO_FINALIZACION_MESES
+    }
+
+    BI_HECHOS_EXAMEN_FINAL {
+        int TIEMPO_ID FK
+        bigint SEDE_ID FK
+        bigint CURSO_CODIGO FK
+        bigint ALUMNO_LEGAJO FK
+        bigint PROFESOR_ID FK
+        decimal NOTA_FINAL
+        int ES_AUSENTE
+        int CANTIDAD_INSCRIPTOS
+    }
+
+    %% RELACIONES
+    BI_HECHOS_INSCRIPCION }|..|| BI_DIM_TIEMPO : ""
+    BI_HECHOS_INSCRIPCION }|..|| BI_DIM_SEDE : ""
+    BI_HECHOS_INSCRIPCION }|..|| BI_DIM_CURSO : ""
+    BI_HECHOS_INSCRIPCION }|..|| BI_DIM_ETARIO_ALUMNO : ""
+
+    BI_HECHOS_CURSADA }|..|| BI_DIM_TIEMPO : ""
+    BI_HECHOS_CURSADA }|..|| BI_DIM_SEDE : ""
+    BI_HECHOS_CURSADA }|..|| BI_DIM_CURSO : ""
+
+    BI_HECHOS_EXAMEN_FINAL }|..|| BI_DIM_TIEMPO : ""
+    BI_HECHOS_EXAMEN_FINAL }|..|| BI_DIM_SEDE : ""
+    BI_HECHOS_EXAMEN_FINAL }|..|| BI_DIM_CURSO : ""
+    BI_HECHOS_EXAMEN_FINAL }|..|| BI_DIM_ETARIO_ALUMNO : ""
+    BI_HECHOS_EXAMEN_FINAL }|..|| BI_DIM_ETARIO_PROFESOR : ""
+
+
+
+
+    %% DIMENSIONES
+    BI_DIM_MEDIO_PAGO {
+        int MEDIO_PAGO_ID PK
+        string MEDIO_PAGO_NOMBRE
+    }
+
+    %% HECHOS
+    BI_HECHOS_PAGO {
+        int TIEMPO_ID FK
+        bigint SEDE_ID FK
+        bigint CURSO_CODIGO FK
+        int MEDIO_PAGO_ID FK
+        decimal IMPORTE_PAGADO
+        decimal IMPORTE_ADEUDADO
+        int PAGO_EN_TERMINO
+        int PAGO_FUERA_TERMINO
+    }
+
+    %% RELACIONES
+    BI_HECHOS_PAGO }|..|| BI_DIM_TIEMPO : ""
+    BI_HECHOS_PAGO }|..|| BI_DIM_SEDE : ""
+    BI_HECHOS_PAGO }|..|| BI_DIM_CURSO : ""
+    BI_HECHOS_PAGO }|..|| BI_DIM_MEDIO_PAGO : ""
+
+
+    %% HECHOS
+    BI_HECHOS_ENCUESTA {
+        int TIEMPO_ID FK
+        bigint SEDE_ID FK
+        bigint PROFESOR_ID FK
+        int ES_SATISFECHO
+        int ES_NEUTRAL
+        int ES_INSATISFECHO
+    }
+
+    %% RELACIONES
+    BI_HECHOS_ENCUESTA }|..|| BI_DIM_TIEMPO : ""
+    BI_HECHOS_ENCUESTA }|..|| BI_DIM_SEDE : ""
+    BI_HECHOS_ENCUESTA }|..|| BI_DIM_ETARIO_PROFESOR : ""

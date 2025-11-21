@@ -1,0 +1,113 @@
+erDiagram
+    %% DIMENSIONES
+    BI_DIM_TIEMPO {
+        int id PK 
+        int anio 
+        int cuatrimestre "Check(1, 2)"
+        int mes
+    }
+
+    BI_DIM_SEDE {
+        bigint id PK
+        NVARCHAR nombre "length: 255"
+    }
+
+    BI_DIM_Categoria_Curso {
+        bigint id PK
+        VARCHAR Categoria_Descripcion "length: 255"
+    }
+
+    BI_DIM_Turno_Curso {
+        smallint id PK
+        VARCHAR Turno_Descripcion "length: 255"
+    }
+
+    BI_DIM_ETARIO_ALUMNO {
+        smallint id PK
+        char RANGO_ETARIO "length: 5"
+    }
+
+    BI_DIM_ETARIO_PROFESOR {
+        smallint id PK
+        char RANGO_ETARIO "length: 10"
+    }
+
+    BI_DIM_BLOQUES_SATISFACCION {
+        smallint id PK
+        CHAR SATISFACCION "length: 20"
+    }
+
+    BI_DIM_MEDIO_PAGO {
+        smallint id PK
+        VARCHAR descripcion "length: 255"
+    }
+
+    %% FACTS TABLE
+    BI_HECHOS_INSCRIPCION {
+        int TIEMPO_ID PK, FK
+        bigint SEDE_ID PK, FK
+        bigint CATEGORIA_CURSO_ID PK, FK
+        bigint TURNO_CURSO_ID PK, FK
+        int CANTIDAD_INSCRIPCIONES
+        DECIMAL porcentaje_rechazadas "length: 3, 2" %% sobre el total de inscripciones
+    }
+    BI_DIM_TIEMPO ||--o{ BI_HECHOS_INSCRIPCION : ""
+    BI_DIM_SEDE ||--o{ BI_HECHOS_INSCRIPCION : ""
+    BI_DIM_Categoria_Curso ||--o{ BI_HECHOS_INSCRIPCION : ""
+    BI_DIM_Turno_Curso ||--o{ BI_HECHOS_INSCRIPCION : ""
+
+    BI_HECHOS_APROBADOS{
+        int TIEMPO_ID PK, FK
+        bigint SEDE_ID PK, FK
+        decimal PORCENTAJE_APROBADOS "length: 3, 2"
+    }
+
+    BI_DIM_TIEMPO ||--o{ BI_HECHOS_APROBADOS : ""
+    BI_DIM_SEDE ||--o{ BI_HECHOS_APROBADOS : ""
+
+    BI_HECHOS_FINALIZACION_CURSADA {
+        int TIEMPO_ID PK, FK
+        bigint CATEGORIA_CURSO_ID PK, FK
+        decimal TIEMPO_PROMEDIO_FINALIZACION
+    }
+
+    BI_DIM_TIEMPO ||--o{ BI_HECHOS_FINALIZACION_CURSADA : ""
+    BI_DIM_Categoria_Curso ||--o{ BI_HECHOS_FINALIZACION_CURSADA : ""
+
+    BI_HECHOS_EXAMEN_FINAL {
+        int TIEMPO_ID PK, FK
+        bigint SEDE_ID PK, FK
+        bigint CATEGORIA_CURSO_ID PK, FK
+        %% NOTA_PROMEDIO_FINAL: se calcula a partir de total notas y total examenes
+        decimal TOTAL_NOTAS "length: 10, 2"
+        int TOTAL_EXAMENES
+        %% porcentaje_ausentes: se calcula a partir de total ausentes y total examenes
+        int TOTAL_INSCRIPCIONES
+        int TOTAL_AUSENTES
+    }
+
+
+
+    BI_HECHOS_FACTURACION {
+        int TIEMPO_ID PK, FK
+        bigint CATEGORIA_CURSO_ID PK, FK
+        bigint SEDE_ID PK, FK
+        decimal TOTAL_PAGOS "length: 8, 2"
+        decimal TOTAL_FACTURADO "length: 8, 2"
+        %% SUM(TOTAL_FACTURADO) de todas las sedes y categorías
+        %% SUM(TOTAL_MOROSIDAD) de todas las sedes y categorías
+        %% SUM(TOTAL_MOROSIDAD) / SUM(TOTAL_FACTURADO)
+        decimal TOTAL_MOROSIDAD "length: 8, 2" %% hace referencia a los que no se pagaron en el mes
+        %% TOTAL_PAGOS_FUERA_DE_TERMINO toma en cuenta la fecha de la factura y la fecha de pago (esto podría incluir los que no se pagaron en el mes)
+        %% SUM(TOTAL_PAGOS_FUERA_DE_TERMINO) / SUM(TOTAL_PAGOS) de todas las sedes y categorías
+        decimal TOTAL_PAGOS_FUERA_DE_TERMINO "length: 8, 2"
+    }
+    BI_HECHOS_ENCUESTA{
+        int TIEMPO_ID PK, FK
+        int ETARIO_PROFESOR_ID PK, FK
+        smallint BLOQUE_SATISFACCION_ID PK, FK
+        bigint SEDE_ID PK, FK
+        int TOTAL_ENCUESTAS
+        %% TOTAL ENCUESTAS DE TODOS LOS BLOQUES DE SATISFACCION SE HACE EN LA VISTA y ahí
+        %% calculo el porcentaje SATISFECHOS o INSATISFECHOS
+    }
