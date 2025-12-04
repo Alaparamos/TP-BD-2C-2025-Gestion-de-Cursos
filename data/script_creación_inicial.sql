@@ -191,6 +191,7 @@ GO
 CREATE TABLE [NORMALIZADOS].[Evaluacion_Curso](
     Evaluacion_Curso_ID  BIGINT IDENTITY(1,1) PRIMARY KEY,
     Evaluacion_Curso_fechaEvaluacion DATETIME2(6) NOT NULL,
+    Curso_Codigo BIGINT FOREIGN KEY REFERENCES [NORMALIZADOS].[Curso](Curso_Codigo),
     Modulo_ID BIGINT FOREIGN KEY REFERENCES [NORMALIZADOS].[Modulo](Modulo_ID)
 );
 GO
@@ -476,12 +477,16 @@ GO
 
 CREATE PROCEDURE [NORMALIZADOS].sp_migrar_evaluacion_curso AS
 BEGIN
-    INSERT INTO [NORMALIZADOS].[Evaluacion_Curso] (Evaluacion_Curso_fechaEvaluacion, Modulo_ID)
-    SELECT Evaluacion_Curso_fechaEvaluacion, modulo.Modulo_ID
+    INSERT INTO [NORMALIZADOS].[Evaluacion_Curso] (Evaluacion_Curso_fechaEvaluacion,Curso_Codigo, Modulo_ID)
+    SELECT DISTINCT Evaluacion_Curso_fechaEvaluacion,
+        maestra.Curso_Codigo,
+        modulo.Modulo_ID
     FROM [GD2C2025].[gd_esquema].[Maestra] maestra
         INNER JOIN [NORMALIZADOS].[Modulo] modulo ON modulo.Modulo_Nombre = maestra.Modulo_Nombre
         INNER JOIN [NORMALIZADOS].[Modulo_x_Curso] mxc ON mxc.Modulo_ID = modulo.Modulo_ID AND maestra.Curso_Codigo = mxc.Curso_Codigo
-    WHERE maestra.Modulo_Nombre IS NOT NULL
+    WHERE maestra.Evaluacion_Curso_fechaEvaluacion IS NOT NULL 
+      AND maestra.Modulo_Nombre IS NOT NULL
+      AND maestra.Curso_Codigo IS NOT NULL
 END
 GO
 
@@ -489,15 +494,22 @@ GO
 CREATE OR ALTER PROCEDURE [NORMALIZADOS].sp_migrar_evaluacion_x_alumno AS
 BEGIN
     INSERT INTO [NORMALIZADOS].[Evaluacion_x_Alumno] (Evaluacion_Curso_ID, Alumno_Legajo, Evaluacion_Nota, Evaluacion_Presente, Evaluacion_Instancia)
-    SELECT
-    (SELECT e.Modulo_ID FROM [NORMALIZADOS].[Modulo] e WHERE e.Modulo_Nombre = m.Modulo_Nombre) AS Evaluacion_Curso_ID,
-    m.Alumno_Legajo,
-    m.Evaluacion_Curso_Nota,
-    m.Evaluacion_Curso_Presente,
-    m.Evaluacion_Curso_Instancia
+    SELECT DISTINCT
+        ec.Evaluacion_Curso_ID,
+        m.Alumno_Legajo,
+        m.Evaluacion_Curso_Nota,
+        m.Evaluacion_Curso_Presente,
+        m.Evaluacion_Curso_Instancia
     FROM [GD2C2025].[gd_esquema].[Maestra] m
-    WHERE m.Alumno_Legajo IN (SELECT Alumno_Legajo FROM [NORMALIZADOS].[Alumno]) AND m.Evaluacion_Curso_Presente IS NOT NULL
-        AND m.Evaluacion_Curso_fechaEvaluacion IS NOT NULL
+    INNER JOIN [NORMALIZADOS].[Modulo] modulo 
+        ON modulo.Modulo_Nombre = m.Modulo_Nombre
+    INNER JOIN [NORMALIZADOS].[Evaluacion_Curso] ec 
+        ON ec.Modulo_ID = modulo.Modulo_ID 
+       AND ec.Curso_Codigo = m.Curso_Codigo 
+       AND ec.Evaluacion_Curso_fechaEvaluacion = m.Evaluacion_Curso_fechaEvaluacion
+    WHERE m.Alumno_Legajo IS NOT NULL 
+      AND m.Evaluacion_Curso_Presente IS NOT NULL
+      AND m.Evaluacion_Curso_fechaEvaluacion IS NOT NULL
 END
 GO
 
@@ -544,6 +556,7 @@ BEGIN
         profesor.Profesor_ID AS Profesor_ID
     FROM [GD2C2025].[gd_esquema].[Maestra] maestra
         INNER JOIN [NORMALIZADOS].[Examen_Final] examen ON examen.Curso_Codigo = maestra.Curso_Codigo
+            AND examen.Examen_Final_Fecha = maestra.Examen_Final_Fecha
         INNER JOIN [NORMALIZADOS].[Alumno] alumno ON alumno.Alumno_Legajo = maestra.Alumno_Legajo
         INNER JOIN [NORMALIZADOS].[Profesor] profesor ON profesor.Profesor_Dni = maestra.Profesor_Dni
     WHERE Evaluacion_Final_Nota IS NOT NULL
@@ -560,6 +573,7 @@ BEGIN
         alumno.Alumno_Legajo AS Alumno_Legajo
     FROM [GD2C2025].[gd_esquema].[Maestra] maestra
         INNER JOIN [NORMALIZADOS].[Examen_Final] examen ON examen.Curso_Codigo = maestra.Curso_Codigo
+            AND examen.Examen_Final_Fecha = maestra.Examen_Final_Fecha
         INNER JOIN [NORMALIZADOS].[Alumno] alumno ON alumno.Alumno_Legajo = maestra.Alumno_Legajo
     WHERE Inscripcion_Final_Fecha IS NOT NULL
 END

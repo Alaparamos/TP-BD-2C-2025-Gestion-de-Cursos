@@ -1,89 +1,81 @@
 erDiagram
     %% DIMENSIONES
     BI_DIM_TIEMPO {
-        int id PK 
-        int anio 
-        int cuatrimestre "Check(1, 2)"
-        int mes
+        int TIEMPO_ID PK "IDENTITY(1,1)"
+        int ANIO 
+        int CUATRIMESTRE "CHECK(1, 2)"
+        int MES
     }
 
+    %% Puedo poner la PK del modelo OLTP
     BI_DIM_SEDE {
-        bigint id PK
-        NVARCHAR nombre "length: 255"
+        bigint SEDE_ID PK
+        varchar SEDE_NOMBRE "length: 255"
     }
 
-    BI_DIM_Categoria_Curso {
-        bigint id PK
-        VARCHAR Categoria_Descripcion "length: 255"
+    %% Puedo poner la PK del modelo OLTP
+    BI_DIM_CATEGORIA_CURSO {
+        bigint ID PK "IDENTITY(1,1)"
+        varchar CURSO_CATEGORIA "length: 255"
     }
 
-    BI_DIM_Turno_Curso {
-        smallint id PK
-        VARCHAR Turno_Descripcion "length: 255"
+    BI_DIM_TURNO_CURSO {
+        bigint ID PK "IDENTITY(1,1)"
+        varchar CURSO_TURNO "length: 255"
     }
 
     BI_DIM_ETARIO_ALUMNO {
-        smallint id PK
-        char RANGO_ETARIO "length: 5"
+        smallint ID PK "IDENTITY(1,1)"
+        varchar ALUMNO_RANGO_ETARIO "length: 50"
     }
 
     BI_DIM_ETARIO_PROFESOR {
-        smallint id PK
-        char RANGO_ETARIO "length: 10"
+        smallint ID PK "IDENTITY(1,1)"
+        varchar PROFESOR_RANGO_ETARIO "length: 50"
     }
 
     BI_DIM_BLOQUES_SATISFACCION {
-        smallint id PK
-        CHAR SATISFACCION "length: 20"
+        int BLOQUE_ID PK "IDENTITY(1,1)"
+        varchar BLOQUE_DESCRIPCION "length: 50, CHECK IN (Satisfechos, Neutrales, Insatisfechos)"
     }
 
+    %% Puedo poner la PK del modelo OLTP
     BI_DIM_MEDIO_PAGO {
-        smallint id PK
-        VARCHAR descripcion "length: 255"
+        int MEDIO_PAGO_ID PK "IDENTITY(1,1)"
+        varchar MEDIO_PAGO_NOMBRE "length: 255"
     }
 
     %% FACTS TABLE
-    BI_HECHOS_INSCRIPCION_CURSADA {
+    BI_HECHOS_INSCRIPCION {
         int TIEMPO_ID PK, FK
         bigint SEDE_ID PK, FK
         bigint CATEGORIA_CURSO_ID PK, FK
         bigint TURNO_CURSO_ID PK, FK
-        int CANTIDAD_INSCRIPCIONES
+        int CANTIDAD_INSCRIPCIONES %% Total de inscripciones
+        %% sobre el total de inscripciones
+        int CANTIDAD_RECHAZADAS
     }
 
-    BI_DIM_TIEMPO ||--o{ BI_HECHOS_INSCRIPCION_CURSADA : ""
-    BI_DIM_SEDE ||--o{ BI_HECHOS_INSCRIPCION_CURSADA : ""
-    BI_DIM_Categoria_Curso ||--o{ BI_HECHOS_INSCRIPCION_CURSADA : ""
-    BI_DIM_Turno_Curso ||--o{ BI_HECHOS_INSCRIPCION_CURSADA : ""
+    BI_DIM_TIEMPO ||--o{ BI_HECHOS_INSCRIPCION : ""
+    BI_DIM_SEDE ||--o{ BI_HECHOS_INSCRIPCION : ""
+    BI_DIM_CATEGORIA_CURSO ||--o{ BI_HECHOS_INSCRIPCION : ""
+    BI_DIM_TURNO_CURSO ||--o{ BI_HECHOS_INSCRIPCION : ""
 
-    BI_HECHOS_INSCRIPCION_RECHAZADAS{
+    BI_HECHOS_CURSO {
         int TIEMPO_ID PK, FK
         bigint SEDE_ID PK, FK
-        int TOTAL_INSCRIPCIONES
-        int TOTAL_RECHAZADAS
-    }
-
-    BI_DIM_TIEMPO ||--o{ BI_HECHOS_INSCRIPCION_RECHAZADAS : ""
-    BI_DIM_SEDE ||--o{ BI_HECHOS_INSCRIPCION_RECHAZADAS : ""
-
-    BI_HECHOS_APROBADOS{
-        int TIEMPO_ID PK, FK
-        bigint SEDE_ID PK, FK
-        int TOTAL_APROBADOS
-        int TOTAL_DESAPROBADOS
-    }
-    
-    BI_DIM_TIEMPO ||--o{ BI_HECHOS_APROBADOS : ""
-    BI_DIM_SEDE ||--o{ BI_HECHOS_APROBADOS : ""
-
-    BI_HECHOS_FINALIZACION_CURSADA {
-        int TIEMPO_ID PK, FK
         bigint CATEGORIA_CURSO_ID PK, FK
-        decimal TIEMPO_PROMEDIO_FINALIZACION
+        int CANTIDAD_APROBADOS
+        int CANTIDAD_DESAPROBADOS
+        %% Tiempo entre el inicio de la cursada y la aprobación del final
+        int SUMA_CANTIDAD_MESES_EN_FINALIZAR
+        %% Cantidad de alumnos que finalizaron la cursada
+        int CANTIDAD_FINALIZADOS
     }
 
-    BI_DIM_TIEMPO ||--o{ BI_HECHOS_FINALIZACION_CURSADA : ""
-    BI_DIM_Categoria_Curso ||--o{ BI_HECHOS_FINALIZACION_CURSADA : ""
+    BI_DIM_TIEMPO ||--o{ BI_HECHOS_CURSO : ""
+    BI_DIM_SEDE ||--o{ BI_HECHOS_CURSO : ""
+    BI_DIM_Categoria_Curso ||--o{ BI_HECHOS_CURSO : ""
 
     BI_HECHOS_EXAMEN_FINAL {
         int TIEMPO_ID PK, FK

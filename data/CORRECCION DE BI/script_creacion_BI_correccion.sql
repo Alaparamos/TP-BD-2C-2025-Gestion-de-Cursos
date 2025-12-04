@@ -47,6 +47,7 @@ BEGIN
     -- Procedures
     DROP PROCEDURE IF EXISTS [NORMALIZADOS].[sp_migrar_bi_dimensiones];
     DROP PROCEDURE IF EXISTS [NORMALIZADOS].[sp_migrar_bi_hechos];
+    DROP PROCEDURE IF EXISTS [NORMALIZADOS].[sp_migrar_bi_hechos_inscripcion];
     
     -- Funciones
     DROP FUNCTION IF EXISTS [NORMALIZADOS].[fx_obtener_cuatrimestre];
@@ -108,7 +109,7 @@ CREATE TABLE [NORMALIZADOS].[BI_DIM_SEDE] (
 );
 
 CREATE TABLE [NORMALIZADOS].[BI_DIM_CATEGORIA_CURSO] (
-    ID BIGINT IDENTITY(1,1) PRIMARY KEY,
+    ID BIGINT PRIMARY KEY, -- Mismo ID que transaccional
     CURSO_CATEGORIA VARCHAR(255)
 );
 
@@ -128,36 +129,19 @@ CREATE TABLE [NORMALIZADOS].[BI_DIM_ETARIO_PROFESOR] (
 );
 
 CREATE TABLE [NORMALIZADOS].[BI_DIM_MEDIO_PAGO] (
-    MEDIO_PAGO_ID INT IDENTITY(1,1) PRIMARY KEY,
+    MEDIO_PAGO_ID INT IDENTITY(1,1) PRIMARY KEY, -- Mismo ID que transaccional
     MEDIO_PAGO_NOMBRE VARCHAR(255)
 );
 
 CREATE TABLE [NORMALIZADOS].[BI_DIM_BLOQUES_SATISFACCION](
     BLOQUE_ID INT IDENTITY(1,1) PRIMARY KEY,
-    BLOQUE_DESCRIPCION VARCHAR(50) -- 'Satisfechos', 'Neutrales', 'Insatisfechos'
+    BLOQUE_DESCRIPCION VARCHAR(50)
+        CHECK (BLOQUE_DESCRIPCION IN ('Satisfechos','Neutrales','Insatisfechos'))
 );
 
 ---------------------------------------------------------------------------------------------------
 -- 4. CREACIÓN DE TABLAS DE HECHOS
 ---------------------------------------------------------------------------------------------------
-
--- HECHO 1: Inscripciones (Cantidad por Tiempo, Sede, Categoria, Turno)
--- CREATE TABLE [NORMALIZADOS].[BI_HECHOS_INSCRIPCION_CURSADA] (
---     TIEMPO_ID INT FOREIGN KEY REFERENCES [NORMALIZADOS].[BI_DIM_TIEMPO](TIEMPO_ID),
---     SEDE_ID BIGINT FOREIGN KEY REFERENCES [NORMALIZADOS].[BI_DIM_SEDE](SEDE_ID),
---     CATEGORIA_CURSO_CODIGO BIGINT FOREIGN KEY REFERENCES [NORMALIZADOS].[BI_DIM_CATEGORIA_CURSO](ID),
---     TURNO_CURSO_CODIGO BIGINT FOREIGN KEY REFERENCES [NORMALIZADOS].[BI_DIM_TURNO_CURSO](ID),
---     CANTIDAD_INSCRIPTOS INT
--- );
--- -- HECHO 2: Inscripciones Rechazadas (Rechazo por Tiempo, Sede)
--- CREATE TABLE [NORMALIZADOS].[BI_HECHOS_INSCRIPCION_CATEGORIA] (
---     TIEMPO_ID INT FOREIGN KEY REFERENCES [NORMALIZADOS].[BI_DIM_TIEMPO](TIEMPO_ID),
---     SEDE_ID BIGINT FOREIGN KEY REFERENCES [NORMALIZADOS].[BI_DIM_SEDE](SEDE_ID),
---     CANTIDAD_INSCRIPTOS INT,
---     CANTIDAD_RECHAZADOS INT
--- );
-
--- Nueva Definición (se unificante HECHO 1 y HECHO 2)`
 
 -- HECHO 1: Inscripciones (Cantidad por Tiempo, Sede, Categoria, Turno) con Rechazos
 CREATE TABLE [NORMALIZADOS].[BI_HECHOS_INSCRIPCION] (
@@ -166,28 +150,13 @@ CREATE TABLE [NORMALIZADOS].[BI_HECHOS_INSCRIPCION] (
     CATEGORIA_CURSO_CODIGO BIGINT FOREIGN KEY REFERENCES [NORMALIZADOS].[BI_DIM_CATEGORIA_CURSO](ID),
     TURNO_CURSO_CODIGO BIGINT FOREIGN KEY REFERENCES [NORMALIZADOS].[BI_DIM_TURNO_CURSO](ID),
     CANTIDAD_INSCRIPTOS INT,
-    CANTIDAD_RECHAZADOS INT
+    CANTIDAD_RECHAZADOS INT,
+    CONSTRAINT PK_BI_HECHOS_INSCRIPCION PRIMARY KEY (
+        TIEMPO_ID, 
+        SEDE_ID, 
+        CATEGORIA_CURSO_CODIGO, 
+        TURNO_CURSO_CODIGO)
 );
-
-
-
--- -- HECHO 3: Aprobados/Desaprobados (Por Tiempo Inicio, Sede)
--- CREATE TABLE [NORMALIZADOS].[BI_HECHOS_APROBADOS] (
---     TIEMPO_INICIO_ID INT FOREIGN KEY REFERENCES [NORMALIZADOS].[BI_DIM_TIEMPO](TIEMPO_ID),
---     SEDE_ID BIGINT FOREIGN KEY REFERENCES [NORMALIZADOS].[BI_DIM_SEDE](SEDE_ID),
---     TOTAL_APROBADOS INT,
---     TOTAL_DESAPROBADOS INT
--- );
-
--- -- HECHO 4: Finalización de Cursada (Duracion por Tiempo Inicio, Categoria)
--- CREATE TABLE [NORMALIZADOS].[BI_HECHOS_FINALIZACION_CURSADA] (
---     TIEMPO_INICIO_ID INT FOREIGN KEY REFERENCES [NORMALIZADOS].[BI_DIM_TIEMPO](TIEMPO_ID),
---     CATEGORIA_CURSO_CODIGO BIGINT FOREIGN KEY REFERENCES [NORMALIZADOS].[BI_DIM_CATEGORIA_CURSO](ID),
---     TIEMPO_FINALIZACION_MESES INT
--- );
-
---se unificante HECHO 3 y HECHO 4
-
 
 -- Nueva Definición
 -- HECHO 2: Aprobados/Desaprobados y Finalización de Cursada
@@ -314,15 +283,15 @@ BEGIN
     INSERT INTO [NORMALIZADOS].[BI_DIM_TIEMPO] (ANIO, MES, CUATRIMESTRE)
     SELECT DISTINCT YEAR(Fecha), MONTH(Fecha), [NORMALIZADOS].[fx_obtener_cuatrimestre](Fecha)
     FROM (
-        SELECT Inscripcion_Fecha AS Fecha FROM [NORMALIZADOS].[Inscripcion]
+        SELECT DISTINCT Inscripcion_Fecha AS Fecha FROM [NORMALIZADOS].[Inscripcion]
         UNION
-        SELECT Pago_Fecha FROM [NORMALIZADOS].[Pago]
+        SELECT DISTINCT Pago_Fecha FROM [NORMALIZADOS].[Pago]
         UNION
-        SELECT Factura_FechaEmision FROM [NORMALIZADOS].[Factura]
+        SELECT DISTINCT Factura_FechaEmision FROM [NORMALIZADOS].[Factura]
         UNION
-        SELECT Examen_Final_Fecha FROM [NORMALIZADOS].[Examen_Final]
+        SELECT DISTINCT Examen_Final_Fecha FROM [NORMALIZADOS].[Examen_Final]
         UNION
-        SELECT Encuesta_FechaRegistro FROM [NORMALIZADOS].[Encuesta]
+        SELECT DISTINCT Encuesta_FechaRegistro FROM [NORMALIZADOS].[Encuesta]
     ) AS Fechas
     WHERE Fecha IS NOT NULL
     ORDER BY 1, 2;
@@ -332,8 +301,8 @@ BEGIN
     SELECT Sede_ID, Sede_Nombre FROM [NORMALIZADOS].[Sede];
 
     -- 3. Dimension CATEGORIA
-    INSERT INTO [NORMALIZADOS].[BI_DIM_CATEGORIA_CURSO] (CURSO_CATEGORIA)
-    SELECT DISTINCT Categoria_Descripcion FROM [NORMALIZADOS].[Categoria];
+    INSERT INTO [NORMALIZADOS].[BI_DIM_CATEGORIA_CURSO] (ID, CURSO_CATEGORIA)
+    SELECT Categoria_ID, Categoria_Descripcion FROM [NORMALIZADOS].[Categoria];
 
     -- 4. Dimension TURNO
     INSERT INTO [NORMALIZADOS].[BI_DIM_TURNO_CURSO] (CURSO_TURNO)
@@ -363,52 +332,14 @@ BEGIN
 END
 GO
 
-CREATE OR ALTER PROCEDURE [NORMALIZADOS].[sp_migrar_bi_hechos] AS
+----------------------------------------------------------------------------------------------
+--- MIGRACIÓN DE TABLAS DE HECHOS --
+----------------------------------------------------------------------------------------------
+
+CREATE OR ALTER PROCEDURE [NORMALIZADOS].[sp_migrar_bi_hechos_inscripcion] AS
 BEGIN
-----------------------------------------------------------------------------------------------
---- MIGRACIÓN DE TABLAS DE HECHOS--
-----------------------------------------------------------------------------------------------
--- select * from [NORMALIZADOS].[BI_DIM_MEDIO_PAGO];
-
-    -- ------------------------------------------
-    -- MIGRACION HECHO 1: INSCRIPCION CURSADA (Cantidades)
-    -- ------------------------------------------
-    -- INSERT INTO [NORMALIZADOS].[BI_HECHOS_INSCRIPCION_CURSADA] 
-    --     (TIEMPO_ID, SEDE_ID, CATEGORIA_CURSO_CODIGO, TURNO_CURSO_CODIGO, CANTIDAD_INSCRIPTOS)
-    -- SELECT 
-    --     t.TIEMPO_ID,
-    --     cur.Sede_ID,
-    --     dim_cat.ID,
-    --     dim_tur.ID,
-    --     COUNT(*)
-    -- FROM [NORMALIZADOS].[Inscripcion] i
-    -- JOIN [NORMALIZADOS].[Curso] cur ON i.Curso_Codigo = cur.Curso_Codigo
-    -- JOIN [NORMALIZADOS].[Categoria] cat ON cur.Categoria_ID = cat.Categoria_ID
-    -- JOIN [NORMALIZADOS].[BI_DIM_TIEMPO] t ON YEAR(i.Inscripcion_Fecha) = t.ANIO AND MONTH(i.Inscripcion_Fecha) = t.MES
-    -- JOIN [NORMALIZADOS].[BI_DIM_CATEGORIA_CURSO] dim_cat ON cat.Categoria_Descripcion = dim_cat.CURSO_CATEGORIA
-    -- JOIN [NORMALIZADOS].[BI_DIM_TURNO_CURSO] dim_tur ON cur.Curso_Turno = dim_tur.CURSO_TURNO
-    -- GROUP BY t.TIEMPO_ID, cur.Sede_ID, dim_cat.ID, dim_tur.ID;
-
-    -- -- ------------------------------------------
-    -- -- MIGRACION HECHO 2: INSCRIPCION CATEGORIA (Rechazos)
-    -- -- ------------------------------------------
-    -- INSERT INTO [NORMALIZADOS].[BI_HECHOS_INSCRIPCION_CATEGORIA] 
-    --     (TIEMPO_ID, SEDE_ID, CANTIDAD_INSCRIPTOS, CANTIDAD_RECHAZADOS)
-    -- SELECT
-    --     t.TIEMPO_ID,
-    --     cur.Sede_ID,
-    --     COUNT(*), 
-    --     SUM(CASE WHEN i.Inscripcion_Estado = 'Rechazada' THEN 1 ELSE 0 END)
-    -- FROM [NORMALIZADOS].[Inscripcion] i
-    -- JOIN [NORMALIZADOS].[Curso] cur ON i.Curso_Codigo = cur.Curso_Codigo
-    -- JOIN [NORMALIZADOS].[BI_DIM_TIEMPO] t ON YEAR(i.Inscripcion_Fecha) = t.ANIO AND MONTH(i.Inscripcion_Fecha) = t.MES
-    -- GROUP BY t.TIEMPO_ID, cur.Sede_ID;
-
--- se unifican ambos hechos en uno solo
-    -- ------------------------------------------
-
     -- MIGRACION HECHO 1: INSCRIPCION (Cantidades y Rechazos)
--- Migración (Debe tener GROUP BY por todas las dimensiones)
+    -- Migración (Debe tener GROUP BY por todas las dimensiones)
     INSERT INTO [NORMALIZADOS].[BI_HECHOS_INSCRIPCION]
     SELECT 
         t.TIEMPO_ID,
@@ -421,70 +352,180 @@ BEGIN
     JOIN [NORMALIZADOS].[Curso] cur ON i.Curso_Codigo = cur.Curso_Codigo
     JOIN [NORMALIZADOS].[Categoria] cat ON cur.Categoria_ID = cat.Categoria_ID
     JOIN [NORMALIZADOS].[BI_DIM_TIEMPO] t ON YEAR(i.Inscripcion_Fecha) = t.ANIO AND MONTH(i.Inscripcion_Fecha) = t.MES
-    JOIN [NORMALIZADOS].[BI_DIM_CATEGORIA_CURSO] dim_cat ON cat.Categoria_Descripcion = dim_cat.CURSO_CATEGORIA
+    JOIN [NORMALIZADOS].[BI_DIM_CATEGORIA_CURSO] dim_cat ON cat.Categoria_ID = dim_cat.ID
     JOIN [NORMALIZADOS].[BI_DIM_TURNO_CURSO] dim_tur ON cur.Curso_Turno = dim_tur.CURSO_TURNO
     GROUP BY t.TIEMPO_ID, cur.Sede_ID, dim_cat.ID, dim_tur.ID;
+END
+GO
+
+CREATE OR ALTER PROCEDURE [NORMALIZADOS].[sp_migrar_bi_hechos_curso] AS
+BEGIN
+
+    SELECT 
+        t.TIEMPO_ID,
+        cur.Sede_ID,
+        dim_cat.ID,
+        COUNT(*), -- Total inscripciones (intentos)
+        SUM(CASE WHEN i.Inscripcion_Estado = 'Rechazada' THEN 1 ELSE 0 END) -- De ese total, cuantos rechazados
+    FROM [NORMALIZADOS].[Evaluacion_x_Alumno] eva
+    JOIN [NORMALIZADOS].[Curso] cur ON i.Curso_Codigo = cur.Curso_Codigo
+    JOIN [NORMALIZADOS].[Categoria] cat ON cur.Categoria_ID = cat.Categoria_ID
+    JOIN [NORMALIZADOS].[BI_DIM_TIEMPO] t ON YEAR(i.Inscripcion_Fecha) = t.ANIO
+    JOIN [NORMALIZADOS].[BI_DIM_CATEGORIA_CURSO] dim_cat ON cat.Categoria_ID = dim_cat.ID
+    GROUP BY t.TIEMPO_ID, cur.Sede_ID, dim_cat.ID;
+
+WITH Cursada AS (
+    SELECT 
+        Curso_Codigo,
+        Evaluacion_Curso_fechaEvaluacion,
+        SUM(es_aprobado) AS CANTIDAD_APROBADOS,
+        SUM(CASE WHEN es_aprobado = 0 THEN 1 ELSE 0 END) AS CANTIDAD_DESAPROBADOS
+    FROM (
+        SELECT DISTINCT
+            ec.Curso_Codigo,
+            ec.Evaluacion_Curso_fechaEvaluacion,
+            eva.Alumno_Legajo,
+            CASE
+            WHEN NOT EXISTS (
+                SELECT 1
+                FROM [NORMALIZADOS].[Evaluacion_x_Alumno] eva2
+                JOIN [NORMALIZADOS].[Evaluacion_Curso] ec2 
+                    ON eva2.Evaluacion_Curso_ID = ec2.Evaluacion_Curso_ID
+                WHERE eva2.Alumno_Legajo = eva.Alumno_Legajo
+                  AND ec2.Curso_Codigo = ec.Curso_Codigo
+                  AND (eva2.Evaluacion_Nota IS NULL OR eva2.Evaluacion_Nota < 4)
+            )
+            AND EXISTS (
+                SELECT 1
+                FROM [NORMALIZADOS].[Trabajo_Practico] tp
+                WHERE tp.Alumno_Legajo = eva.Alumno_Legajo
+                  AND tp.Curso_Codigo = ec.Curso_Codigo
+                  AND tp.Trabajo_Practico_Nota >= 4
+            )
+            THEN 1
+            ELSE 0
+        END AS es_aprobado
+        FROM [NORMALIZADOS].[Evaluacion_x_Alumno] eva
+            INNER JOIN [NORMALIZADOS].[Evaluacion_Curso] ec 
+            ON eva.Evaluacion_Curso_ID = ec.Evaluacion_Curso_ID
+    ) AS alumnos
+GROUP BY Curso_Codigo, Evaluacion_Curso_fechaEvaluacion)
+
+    SELECT 
+        cur.CANTIDAD_APROBADOS,
+        cur.CANTIDAD_DESAPROBADOS
+    FROM Cursada cur
+        INNER JOIN [NORMALIZADOS].[Curso] c ON c.Curso_Codigo = cur.Curso_Codigo
+        INNER JOIN [NORMALIZADOS].[BI_DIM_CATEGORIA_CURSO] dim_cat ON dim_cat.ID = c.Categoria_ID
+        INNER JOIN [NORMALIZADOS].[BI_DIM_TIEMPO] dim_t ON dim_t.ANIO = YEAR(cur.Evaluacion_Curso_fechaEvaluacion)
+        INNER JOIN [NORMALIZADOS].[BI_DIM_SEDE] sede ON sede.SEDE_ID = c.Sede_ID
+    GROUP BY dim_cat.ID, dim_t.TIEMPO_ID, sede.SEDE_ID
+
+    SELECT * FROM [NORMALIZADOS].[BI_DIM_CATEGORIA_CURSO]
+    SELECT c.Curso_Codigo, cat.Categoria_ID, COUNT(c.Curso_Codigo) FROM [NORMALIZADOS].[Curso] c INNER JOIN [NORMALIZADOS].[Categoria] cat ON c.Categoria_ID = cat.Categoria_ID
+    GROUP BY c.Curso_Codigo, cat.Categoria_ID
+
+    SELECT eva.Alumno_Legajo,
+           SUM(CASE WHEN eva.Evaluacion_Nota >= 4 THEN 1 ELSE 0 END) AS CANTIDAD_APROBADOS,
+           SUM(CASE WHEN eva.Evaluacion_Nota IS NULL OR eva.Evaluacion_Nota < 4 THEN 1 ELSE 0 END) AS CANTIDAD_DESAPROBADOS
+    FROM [NORMALIZADOS].[Evaluacion_x_Alumno] eva
+    INNER JOIN [NORMALIZADOS].[Evaluacion_Curso] ec 
+        ON eva.Evaluacion_Curso_ID = ec.Evaluacion_Curso_ID
+    GROUP BY eva.Alumno_Legajo, ec.Curso_Codigo
 
 
-    -- -- ------------------------------------------
-    -- -- MIGRACION HECHO 3: APROBADOS (Desempeño Cursada) - CORREGIDO CON CTE
-    -- -- ------------------------------------------
-    -- -- Solución: Primero calculamos el estado de cada cursada individualmente (CTE)
-    -- -- y luego agrupamos en la inserción.
-    -- WITH Estado_Cursadas AS (
-    --     SELECT
-    --         i.Alumno_Legajo,
-    --         i.Curso_Codigo,
-    --         c.Sede_ID,
-    --         c.Curso_FechaInicio,
-    --         -- Cálculo de Nota Minima Parciales (Si es NULL asumimos 0)
-    --         ISNULL((SELECT MIN(exa.Evaluacion_Nota) 
-    --                 FROM [NORMALIZADOS].[Evaluacion_x_Alumno] exa 
-    --                 JOIN [NORMALIZADOS].[Evaluacion_Curso] ec ON exa.Evaluacion_Curso_ID = ec.Evaluacion_Curso_ID
-    --                 JOIN [NORMALIZADOS].[Modulo_x_Curso] mxc ON ec.Modulo_ID = mxc.Modulo_ID
-    --                 WHERE exa.Alumno_Legajo = i.Alumno_Legajo 
-    --                   AND mxc.Curso_Codigo = i.Curso_Codigo), 0) as Min_Nota_Parcial,
-    --         -- Cálculo de Nota Maxima TP (Si es NULL asumimos 0)
-    --         ISNULL((SELECT MAX(tp.Trabajo_Practico_Nota) 
-    --                 FROM [NORMALIZADOS].[Trabajo_Practico] tp 
-    --                 WHERE tp.Alumno_Legajo = i.Alumno_Legajo 
-    --                   AND tp.Curso_Codigo = i.Curso_Codigo), 0) as Max_Nota_TP
-    --     FROM [NORMALIZADOS].[Inscripcion] i
-    --     JOIN [NORMALIZADOS].[Curso] c ON i.Curso_Codigo = c.Curso_Codigo
-    --     WHERE i.Inscripcion_Estado = 'Confirmada'
-    -- )
-    -- INSERT INTO [NORMALIZADOS].[BI_HECHOS_APROBADOS] (TIEMPO_INICIO_ID, SEDE_ID, TOTAL_APROBADOS, TOTAL_DESAPROBADOS)
-    -- SELECT
-    --     t.TIEMPO_ID,
-    --     ec.Sede_ID,
-    --     -- Aprobado: Parciales >= 4 Y TP >= 4
-    --     SUM(CASE WHEN ec.Min_Nota_Parcial >= 4 AND ec.Max_Nota_TP >= 4 THEN 1 ELSE 0 END),
-    --     -- Desaprobado: Parciales < 4 O TP < 4
-    --     SUM(CASE WHEN ec.Min_Nota_Parcial < 4 OR ec.Max_Nota_TP < 4 THEN 1 ELSE 0 END)
-    -- FROM Estado_Cursadas ec
-    -- JOIN [NORMALIZADOS].[BI_DIM_TIEMPO] t ON YEAR(ec.Curso_FechaInicio) = t.ANIO AND MONTH(ec.Curso_FechaInicio) = t.MES
-    -- GROUP BY t.TIEMPO_ID, ec.Sede_ID;
+    SELECT * FROM [NORMALIZADOS].[Evaluacion_x_Alumno] eva
+        INNER JOIN [NORMALIZADOS].[Evaluacion_Curso] ec ON eva.Evaluacion_Curso_ID = ec.Evaluacion_Curso_ID
+        WHERE eva.Alumno_Legajo = 569618
 
-    -- -- ------------------------------------------
-    -- -- MIGRACION HECHO 4: FINALIZACION CURSADA
-    -- -- ------------------------------------------
-    -- INSERT INTO [NORMALIZADOS].[BI_HECHOS_FINALIZACION_CURSADA] (TIEMPO_INICIO_ID, CATEGORIA_CURSO_CODIGO, TIEMPO_FINALIZACION_MESES)
-    -- SELECT
-    --     t.TIEMPO_ID,
-    --     dim_cat.ID,
-    --     DATEDIFF(MONTH, c.Curso_FechaInicio, ef.Examen_Final_Fecha)
-    -- FROM [NORMALIZADOS].[Inscripcion] i
-    -- JOIN [NORMALIZADOS].[Curso] c ON i.Curso_Codigo = c.Curso_Codigo
-    -- JOIN [NORMALIZADOS].[Categoria] cat ON c.Categoria_ID = cat.Categoria_ID
-    -- JOIN [NORMALIZADOS].[BI_DIM_TIEMPO] t ON YEAR(c.Curso_FechaInicio) = t.ANIO AND MONTH(c.Curso_FechaInicio) = t.MES
-    -- JOIN [NORMALIZADOS].[BI_DIM_CATEGORIA_CURSO] dim_cat ON cat.Categoria_Descripcion = dim_cat.CURSO_CATEGORIA
-    -- INNER JOIN [NORMALIZADOS].[Evaluacion_Final] evf ON evf.Alumno_Legajo = i.Alumno_Legajo
-    -- INNER JOIN [NORMALIZADOS].[Examen_Final] ef ON evf.Examen_Final_ID = ef.Examen_Final_ID AND ef.Curso_Codigo = c.Curso_Codigo
-    -- WHERE i.Inscripcion_Estado = 'Confirmada' AND evf.Evaluacion_Final_Nota >= 4;
+    SELECT * FROM [NORMALIZADOS].[Evaluacion_x_Alumno] eva
+        INNER JOIN [NORMALIZADOS].[Evaluacion_Curso] ec ON eva.Evaluacion_Curso_ID = ec.Evaluacion_Curso_ID
+        WHERE ec.Curso_Codigo = 31865 AND EXISTS (SELECT 1 FROM [NORMALIZADOS].[Evaluacion_x_Alumno] eva2
+            WHERE eva2.Alumno_Legajo = eva.Alumno_Legajo
+            GROUP BY eva2.Alumno_Legajo
+            HAVING SUM(CASE WHEN eva2.Evaluacion_Nota IS NULL OR eva2.Evaluacion_Nota < 4 THEN 1 ELSE 0 END) = 0)
 
-    -- se unifican ambos hechos en uno solo
+    SELECT * FROM [NORMALIZADOS].[Trabajo_Practico] tp
+        WHERE tp.Curso_Codigo = 31865 AND tp.Alumno_Legajo = 574324
 
-------------------------------------------
+        SELECT 
+    ec.Curso_Codigo,
+    COUNT(DISTINCT eva.Alumno_Legajo) AS CANTIDAD_APROBADOS
+    FROM [NORMALIZADOS].[Evaluacion_x_Alumno] eva
+        JOIN [NORMALIZADOS].[Evaluacion_Curso] ec ON eva.Evaluacion_Curso_ID = ec.Evaluacion_Curso_ID
+    WHERE 
+    -- Condición 1: No tiene notas < 4 en parciales
+    NOT EXISTS (
+        SELECT 1
+            FROM [NORMALIZADOS].[Evaluacion_x_Alumno] eva2
+                INNER JOIN [NORMALIZADOS].[Evaluacion_Curso] ec2 
+                ON eva2.Evaluacion_Curso_ID = ec2.Evaluacion_Curso_ID
+        WHERE eva2.Alumno_Legajo = eva.Alumno_Legajo
+            AND ec2.Curso_Codigo = ec.Curso_Codigo
+            AND (eva2.Evaluacion_Nota IS NULL OR eva2.Evaluacion_Nota < 4)
+    )
+    -- Condición 2: Tiene TP >= 4
+    AND EXISTS (
+        SELECT 1
+        FROM [NORMALIZADOS].[Trabajo_Practico] tp
+        WHERE tp.Alumno_Legajo = eva.Alumno_Legajo
+          AND tp.Curso_Codigo = ec.Curso_Codigo
+          AND tp.Trabajo_Practico_Nota >= 4
+    )
+    GROUP BY ec.Curso_Codigo;
+
+
+    SELECT 
+    ec.Curso_Codigo,
+    
+    -- ✅ Aprobados: parciales >= 4 Y TP >= 4
+    SUM(CASE
+        WHEN NOT EXISTS (
+            SELECT 1
+            FROM [NORMALIZADOS].[Evaluacion_x_Alumno] eva2
+            JOIN [NORMALIZADOS].[Evaluacion_Curso] ec2 
+                ON eva2.Evaluacion_Curso_ID = ec2.Evaluacion_Curso_ID
+            WHERE eva2.Alumno_Legajo = eva.Alumno_Legajo
+              AND ec2.Curso_Codigo = ec.Curso_Codigo
+              AND (eva2.Evaluacion_Nota IS NULL OR eva2.Evaluacion_Nota < 4)
+        )
+        AND EXISTS (
+            SELECT 1
+            FROM [NORMALIZADOS].[Trabajo_Practico] tp
+            WHERE tp.Alumno_Legajo = eva.Alumno_Legajo
+              AND tp.Curso_Codigo = ec.Curso_Codigo
+              AND tp.Trabajo_Practico_Nota >= 4
+        )
+        THEN 1
+        ELSE 0
+    END) AS CANTIDAD_APROBADOS,
+    
+    -- ✅ Desaprobados: parciales < 4 O TP < 4 O sin TP
+    SUM(CASE
+        WHEN EXISTS (
+            SELECT 1
+            FROM [NORMALIZADOS].[Evaluacion_x_Alumno] eva2
+            JOIN [NORMALIZADOS].[Evaluacion_Curso] ec2 
+                ON eva2.Evaluacion_Curso_ID = ec2.Evaluacion_Curso_ID
+            WHERE eva2.Alumno_Legajo = eva.Alumno_Legajo
+              AND ec2.Curso_Codigo = ec.Curso_Codigo
+              AND (eva2.Evaluacion_Nota IS NULL OR eva2.Evaluacion_Nota < 4)
+        )
+        OR NOT EXISTS (
+            SELECT 1
+            FROM [NORMALIZADOS].[Trabajo_Practico] tp
+            WHERE tp.Alumno_Legajo = eva.Alumno_Legajo
+              AND tp.Curso_Codigo = ec.Curso_Codigo
+              AND tp.Trabajo_Practico_Nota >= 4
+        )
+        THEN 1
+        ELSE 0
+    END) AS CANTIDAD_DESAPROBADOS
+
+FROM [NORMALIZADOS].[Evaluacion_x_Alumno] eva
+JOIN [NORMALIZADOS].[Evaluacion_Curso] ec 
+    ON eva.Evaluacion_Curso_ID = ec.Evaluacion_Curso_ID
+GROUP BY ec.Curso_Codigo;
 
     -- MIGRACION HECHO 2: APROBADOS Y FINALIZACION CURSADA - CORREGIDO CON CTE
     WITH Estado_Alumnos AS (
@@ -522,6 +563,17 @@ BEGIN
         JOIN [NORMALIZADOS].[Categoria] cat ON c.Categoria_ID = cat.Categoria_ID
         WHERE i.Inscripcion_Estado = 'Confirmada' -- Solo cursadas reales
     )
+
+    SELECT * FROM [NORMALIZADOS].[Evaluacion_Curso]
+    SELECT * FROM [NORMALIZADOS].[Evaluacion_x_Alumno]
+
+    SELECT ea.Evaluacion_Curso_ID, ea.Alumno_Legajo
+    FROM [NORMALIZADOS].[Evaluacion_x_Alumno] ea
+    INNER JOIN [NORMALIZADOS].[Evaluacion_Curso] ec ON ec.Evaluacion_Curso_ID = ea.Evaluacion_Curso_ID
+    GROUP BY ea.Evaluacion_Curso_ID, ea.Alumno_Legajo
+
+    SELECT * FROM [NORMALIZADOS].[Evaluacion_x_Alumno] ea
+
     INSERT INTO [NORMALIZADOS].[BI_HECHOS_CURSO]
         (TIEMPO_ID, SEDE_ID, CATEGORIA_CURSO_CODIGO, CANTIDAD_APROBADOS, CANTIDAD_DESAPROBADOS, SUMATORIA_TIEMPO_FINALIZACION, CANTIDAD_CASOS_FINALIZACION)
     SELECT
@@ -541,8 +593,11 @@ BEGIN
     JOIN [NORMALIZADOS].[BI_DIM_TIEMPO] t ON YEAR(ea.Curso_FechaInicio) = t.ANIO AND MONTH(ea.Curso_FechaInicio) = t.MES
     JOIN [NORMALIZADOS].[BI_DIM_CATEGORIA_CURSO] dim_cat ON ea.Categoria_Descripcion = dim_cat.CURSO_CATEGORIA
     GROUP BY t.TIEMPO_ID, ea.Sede_ID, dim_cat.ID;
+END
+GO
 
-
+CREATE OR ALTER PROCEDURE [NORMALIZADOS].[sp_migrar_bi_hechos] AS
+BEGIN
     -- -- ------------------------------------------
     -- -- MIGRACION HECHO 5: EXAMEN FINAL
     -- -- ------------------------------------------
@@ -815,6 +870,7 @@ GO
 ---------------------------------------------------------------------------------------------------
 BEGIN TRANSACTION
     EXEC [NORMALIZADOS].[sp_migrar_bi_dimensiones];
+    EXEC [NORMALIZADOS].[sp_migrar_bi_hechos_inscripcion];
     EXEC [NORMALIZADOS].[sp_migrar_bi_hechos];
 COMMIT TRANSACTION
 GO
@@ -823,7 +879,7 @@ GO
 -- 7. CREACIÓN DE VISTAS (Adaptadas a las nuevas Tablas)
 ---------------------------------------------------------------------------------------------------
 
--- 1. Categorías y turnos más solicitados (Top 3 por año por sede)
+-- 1. Categorías y turnos más solicitados
 -- Fuente: BI_HECHOS_INSCRIPCION
 CREATE VIEW [NORMALIZADOS].[Vista_01_Categorias_Turnos_Mas_Solicitados] AS
 SELECT TOP 3
@@ -837,11 +893,14 @@ JOIN [NORMALIZADOS].[BI_DIM_TIEMPO] t ON h.TIEMPO_ID = t.TIEMPO_ID
 JOIN [NORMALIZADOS].[BI_DIM_SEDE] s ON h.SEDE_ID = s.SEDE_ID
 JOIN [NORMALIZADOS].[BI_DIM_CATEGORIA_CURSO] dc ON h.CATEGORIA_CURSO_CODIGO = dc.ID
 JOIN [NORMALIZADOS].[BI_DIM_TURNO_CURSO] dt ON h.TURNO_CURSO_CODIGO = dt.ID
-GROUP BY t.ANIO, s.SEDE_NOMBRE, dc.CURSO_CATEGORIA, dt.CURSO_TURNO
-ORDER BY t.ANIO, s.SEDE_NOMBRE, CANTIDAD_TOTAL DESC;
+GROUP BY t.TIEMPO_ID, t.ANIO,
+    s.SEDE_ID, s.SEDE_NOMBRE,
+    dc.ID, dc.CURSO_CATEGORIA, 
+    dt.ID, dt.CURSO_TURNO
+ORDER BY 5 DESC;
 GO
 
--- 2. Tasa de rechazo de inscripciones (Por mes por sede)
+-- 2. Tasa de rechazo de inscripciones (Por mes y por sede)
 -- Fuente: BI_HECHOS_INSCRIPCION
 CREATE VIEW [NORMALIZADOS].[Vista_02_Tasa_Rechazo_Inscripciones] AS
 SELECT
@@ -856,6 +915,8 @@ JOIN [NORMALIZADOS].[BI_DIM_SEDE] s ON h.SEDE_ID = s.SEDE_ID
 GROUP BY t.ANIO, t.MES, s.SEDE_NOMBRE;
 GO
 
+SELECT * FROM [NORMALIZADOS].[BI_HECHOS_INSCRIPCION]
+GO
 -- 3. Comparación de desempeño de cursada (Aprobación por sede por año)
 -- Fuente: BI_HECHOS_CURSO
 CREATE VIEW [NORMALIZADOS].[Vista_03_Desempeno_Cursada] AS
