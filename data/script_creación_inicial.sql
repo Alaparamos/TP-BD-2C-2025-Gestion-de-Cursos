@@ -549,8 +549,8 @@ CREATE PROCEDURE [NORMALIZADOS].sp_migrar_evaluacion_final AS
 BEGIN
     INSERT INTO [NORMALIZADOS].[Evaluacion_Final] (Evaluacion_Final_Nota, Evaluacion_Final_Presente, Examen_Final_ID, Alumno_Legajo, Profesor_ID)
     SELECT DISTINCT 
-        Evaluacion_Final_Nota,
-        Evaluacion_Final_Presente,
+        maestra.Evaluacion_Final_Nota,
+        maestra.Evaluacion_Final_Presente,
         examen.Examen_Final_ID AS Examen_Final_ID,
         alumno.Alumno_Legajo AS Alumno_Legajo,
         profesor.Profesor_ID AS Profesor_ID
@@ -559,7 +559,8 @@ BEGIN
             AND examen.Examen_Final_Fecha = maestra.Examen_Final_Fecha
         INNER JOIN [NORMALIZADOS].[Alumno] alumno ON alumno.Alumno_Legajo = maestra.Alumno_Legajo
         INNER JOIN [NORMALIZADOS].[Profesor] profesor ON profesor.Profesor_Dni = maestra.Profesor_Dni
-    WHERE Evaluacion_Final_Nota IS NOT NULL
+    WHERE maestra.Evaluacion_Final_Presente IS NOT NULL
+    -- WHERE   maestra.Evaluacion_Final_Nota is not null
 END
 GO
 
