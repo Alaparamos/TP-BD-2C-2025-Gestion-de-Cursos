@@ -243,7 +243,8 @@ CREATE TABLE [NORMALIZADOS].[BI_HECHOS_PAGO] (
     TIEMPO_ID INT FOREIGN KEY REFERENCES [NORMALIZADOS].[BI_DIM_TIEMPO](TIEMPO_ID),
     SEDE_ID BIGINT FOREIGN KEY REFERENCES [NORMALIZADOS].[BI_DIM_SEDE](SEDE_ID),
     CATEGORIA_CURSO_CODIGO BIGINT FOREIGN KEY REFERENCES [NORMALIZADOS].[BI_DIM_CATEGORIA_CURSO](ID),
-    MEDIO_PAGO_ID INT FOREIGN KEY REFERENCES [NORMALIZADOS].[BI_DIM_MEDIO_PAGO](MEDIO_PAGO_ID),
+    MEDIO_PAGO_ID INT FOREIGN KEY REFERENCES [NORMALIZADOS].[BI_DIM_MEDIO_PAGO](MEDIO_PAGO_ID), -- No puede ser null pero la facturacion sin pagos tiene medio de pago null
+	-- Agregamos un valor con id -1 para referenciar los Pendiente de Pago
     
     -- Métricas Financieras
     IMPORTE_PAGADO DECIMAL(18,2),
@@ -502,6 +503,89 @@ BEGIN
 END
 GO
 
+
+-- MIGRACION HECHO 4: PAGO
+CREATE OR ALTER PROCEDURE [NORMALIZADOS].[sp_migrar_bi_pagos] AS
+BEGIN
+	INSERT INTO [NORMALIZADOS].[BI_HECHOS_PAGO] 
+    ( TIEMPO_ID, SEDE_ID, CATEGORIA_CURSO_CODIGO, MEDIO_PAGO_ID, IMPORTE_PAGADO, IMPORTE_FACTURADO, CANTIDAD_PAGOS_EN_TERMINO, CANTIDAD_PAGOS_FUERA_TERMINO )
+    SELECT
+        t.TIEMPO_ID,
+        fu.Sede_ID,
+        dim_cat.ID,
+        
+        -- Mapeo al ID -1 si es NULL (Caso Facturas/Deuda)
+        ISNULL(dim_mp.MEDIO_PAGO_ID, -1), 
+        
+        SUM(fu.Importe_Pagado),
+        SUM(fu.Importe_Facturado),
+        SUM(fu.Pago_En_Termino),
+        SUM(fu.Pago_Fuera_Termino)
+
+    FROM (
+        -- Subconsulta: Unificación de Facturas y Pagos
+        
+        -- 1. DEUDA GENERADA (Facturas emitidas)
+        -- Aquí tomamos el importe directo del detalle (lo que vale cada curso)
+        SELECT 
+            f.Factura_FechaEmision AS Fecha_Evento,
+            c.Sede_ID,
+            cat.Categoria_Descripcion,
+            NULL AS Medio_Pago_Nombre, 
+            0 AS Importe_Pagado,
+            df.Detalle_Factura_Importe AS Importe_Facturado, 
+            0 AS Pago_En_Termino,
+            0 AS Pago_Fuera_Termino
+        FROM [NORMALIZADOS].[Factura] f
+        JOIN [NORMALIZADOS].[Detalle_Factura] df ON f.Factura_Numero = df.Factura_Numero
+        JOIN [NORMALIZADOS].[Curso] c ON df.Curso_Codigo = c.Curso_Codigo
+        JOIN [NORMALIZADOS].[Categoria] cat ON c.Categoria_ID = cat.Categoria_ID
+
+        UNION ALL
+
+        -- 2. COBRANZA REAL (Pagos realizados)
+        -- AQUÍ ESTÁ EL FIX: Prorrateamos el pago según el peso del ítem en la factura
+        SELECT 
+            p.Pago_Fecha AS Fecha_Evento,
+            c.Sede_ID,
+            cat.Categoria_Descripcion,
+            p.Pago_MedioPago AS Medio_Pago_Nombre,
+            
+            -- FIX DE DINERO: (Pago Real * (Importe del Item / Total Factura))
+            (p.Pago_Importe * df.Detalle_Factura_Importe / f.Factura_Total) AS Importe_Pagado,
+            
+            0 AS Importe_Facturado,
+            
+            -- Conteo: Sigue siendo 1 por ítem (Esto explica la diferencia 38k vs 16k)
+            CASE WHEN p.Pago_Fecha <= f.Factura_FechaVencimiento THEN 1 ELSE 0 END, 
+            CASE WHEN p.Pago_Fecha > f.Factura_FechaVencimiento THEN 1 ELSE 0 END
+        FROM [NORMALIZADOS].[Pago] p
+        JOIN [NORMALIZADOS].[Factura] f ON p.Factura_Numero = f.Factura_Numero
+        JOIN [NORMALIZADOS].[Detalle_Factura] df ON f.Factura_Numero = df.Factura_Numero
+        JOIN [NORMALIZADOS].[Curso] c ON df.Curso_Codigo = c.Curso_Codigo
+        JOIN [NORMALIZADOS].[Categoria] cat ON c.Categoria_ID = cat.Categoria_ID
+        WHERE f.Factura_Total > 0 -- Protección contra división por cero
+    ) fu
+    
+    -- Joins a Dimensiones
+    JOIN [NORMALIZADOS].[BI_DIM_TIEMPO] t 
+        ON YEAR(fu.Fecha_Evento) = t.ANIO AND MONTH(fu.Fecha_Evento) = t.MES
+    JOIN [NORMALIZADOS].[BI_DIM_CATEGORIA_CURSO] dim_cat 
+        ON fu.Categoria_Descripcion = dim_cat.CURSO_CATEGORIA
+    
+    -- LEFT JOIN con Medio de Pago
+    LEFT JOIN [NORMALIZADOS].[BI_DIM_MEDIO_PAGO] dim_mp 
+        ON fu.Medio_Pago_Nombre = dim_mp.MEDIO_PAGO_NOMBRE
+    
+    GROUP BY 
+        t.TIEMPO_ID, 
+        fu.Sede_ID, 
+        dim_cat.ID, 
+        ISNULL(dim_mp.MEDIO_PAGO_ID, -1)
+END
+GO
+
+
 -- MIGRACION HECHO 5: ENCUESTA
 CREATE OR ALTER PROCEDURE [NORMALIZADOS].[sp_migrar_bi_encuestas] AS
 BEGIN
@@ -537,112 +621,7 @@ BEGIN
 END
 GO
 
-CREATE OR ALTER PROCEDURE [NORMALIZADOS].[sp_migrar_bi_hechos] AS
-BEGIN
-    -- -- ------------------------------------------
-    -- -- MIGRACION HECHO 7: PAGO 
-    -- -- ------------------------------------------
-    -- -- Parte A: Pagos Reales
-    -- INSERT INTO [NORMALIZADOS].[BI_HECHOS_PAGO] (TIEMPO_ID, IMPORTE_PAGADO, IMPORTE_FACTURADO, PAGO_EN_TERMINO, PAGO_FUERA_TERMINO)
-    -- SELECT
-    --     t.TIEMPO_ID,
-    --     p.Pago_Importe,
-    --     0, 
-    --     CASE WHEN p.Pago_Fecha <= f.Factura_FechaVencimiento THEN 1 ELSE 0 END,
-    --     CASE WHEN p.Pago_Fecha > f.Factura_FechaVencimiento THEN 1 ELSE 0 END
-    -- FROM [NORMALIZADOS].[Pago] p
-    -- JOIN [NORMALIZADOS].[Factura] f ON p.Factura_Numero = f.Factura_Numero
-    -- JOIN [NORMALIZADOS].[BI_DIM_TIEMPO] t ON YEAR(p.Pago_Fecha) = t.ANIO AND MONTH(p.Pago_Fecha) = t.MES;
 
-    -- -- Parte B: Deudas
-    -- INSERT INTO [NORMALIZADOS].[BI_HECHOS_PAGO] (TIEMPO_ID, IMPORTE_PAGADO, IMPORTE_FACTURADO, PAGO_EN_TERMINO, PAGO_FUERA_TERMINO)
-    -- SELECT 
-    --     t.TIEMPO_ID,
-    --     0,
-    --     f.Factura_Total,
-    --     0, 0
-    -- FROM [NORMALIZADOS].[Factura] f
-    -- JOIN [NORMALIZADOS].[BI_DIM_TIEMPO] t ON YEAR(f.Factura_FechaEmision) = t.ANIO AND MONTH(f.Factura_FechaEmision) = t.MES
-    -- WHERE NOT EXISTS (SELECT 1 FROM [NORMALIZADOS].[Pago] p WHERE p.Factura_Numero = f.Factura_Numero);
-
-    -- -- ------------------------------------------
-    -- -- MIGRACION HECHO 8: INGRESOS 
-    -- -- ------------------------------------------
-    -- INSERT INTO [NORMALIZADOS].[BI_HECHOS_INGRESOS] (TIEMPO_ID, CATEGORIA_CURSO_CODIGO, SEDE_ID, TOTAL_INGRESOS)
-    -- SELECT
-    --     t.TIEMPO_ID,
-    --     dim_cat.ID,
-    --     c.Sede_ID,
-    --     SUM(p.Pago_Importe)
-    -- FROM [NORMALIZADOS].[Pago] p
-    -- JOIN [NORMALIZADOS].[Factura] f ON p.Factura_Numero = f.Factura_Numero
-    -- JOIN [NORMALIZADOS].[Detalle_Factura] df ON f.Factura_Numero = df.Factura_Numero
-    -- JOIN [NORMALIZADOS].[Curso] c ON df.Curso_Codigo = c.Curso_Codigo
-    -- JOIN [NORMALIZADOS].[Categoria] cat ON c.Categoria_ID = cat.Categoria_ID
-    -- JOIN [NORMALIZADOS].[BI_DIM_TIEMPO] t ON YEAR(p.Pago_Fecha) = t.ANIO AND MONTH(p.Pago_Fecha) = t.MES
-    -- JOIN [NORMALIZADOS].[BI_DIM_CATEGORIA_CURSO] dim_cat ON cat.Categoria_Descripcion = dim_cat.CURSO_CATEGORIA
-    -- GROUP BY t.TIEMPO_ID, dim_cat.ID, c.Sede_ID;
-------------------------------------------------------------------
-
--- ------------------------------------------
-    -- MIGRACION HECHO 4: PAGO (CORREGIDO: Apunta a ID -1 si es nulo)
-    -- ------------------------------------------
-    ;WITH Finanzas_Unificadas AS (
-        -- Bloque Facturación (Deuda)
-        SELECT 
-            f.Factura_FechaEmision AS Fecha_Evento,
-            c.Sede_ID,
-            cat.Categoria_Descripcion,
-            CAST(NULL AS VARCHAR(255)) AS Medio_Pago_Nombre,
-            0 AS Importe_Pagado,
-            df.Detalle_Factura_Importe AS Importe_Facturado, 
-            0 AS Pago_En_Termino,
-            0 AS Pago_Fuera_Termino
-        FROM [NORMALIZADOS].[Factura] f
-        JOIN [NORMALIZADOS].[Detalle_Factura] df ON f.Factura_Numero = df.Factura_Numero
-        JOIN [NORMALIZADOS].[Curso] c ON df.Curso_Codigo = c.Curso_Codigo
-        JOIN [NORMALIZADOS].[Categoria] cat ON c.Categoria_ID = cat.Categoria_ID
-
-        UNION ALL
-
-        -- Bloque Pagos (Cobro)
-        SELECT 
-            p.Pago_Fecha AS Fecha_Evento,
-            c.Sede_ID,
-            cat.Categoria_Descripcion,
-            p.Pago_MedioPago AS Medio_Pago_Nombre,
-            p.Pago_Importe AS Importe_Pagado,
-            0 AS Importe_Facturado, 
-            CASE WHEN p.Pago_Fecha <= f.Factura_FechaVencimiento THEN 1 ELSE 0 END, 
-            CASE WHEN p.Pago_Fecha > f.Factura_FechaVencimiento THEN 1 ELSE 0 END
-        FROM [NORMALIZADOS].[Pago] p
-        JOIN [NORMALIZADOS].[Factura] f ON p.Factura_Numero = f.Factura_Numero
-        JOIN [NORMALIZADOS].[Detalle_Factura] df ON f.Factura_Numero = df.Factura_Numero
-        JOIN [NORMALIZADOS].[Curso] c ON df.Curso_Codigo = c.Curso_Codigo
-        JOIN [NORMALIZADOS].[Categoria] cat ON c.Categoria_ID = cat.Categoria_ID
-    )
-    INSERT INTO [NORMALIZADOS].[BI_HECHOS_PAGO]
-        (TIEMPO_ID, SEDE_ID, CATEGORIA_CURSO_CODIGO, MEDIO_PAGO_ID, 
-        IMPORTE_PAGADO, IMPORTE_FACTURADO, CANTIDAD_PAGOS_EN_TERMINO, CANTIDAD_PAGOS_FUERA_TERMINO)
-    SELECT
-        t.TIEMPO_ID,
-        fu.Sede_ID,
-        dim_cat.ID,
-        -- AQUI ESTÁ EL ARREGLO: Si no encuentra medio de pago, usa -1 (Pendiente)
-        ISNULL(dim_mp.MEDIO_PAGO_ID, -1), 
-        
-        SUM(fu.Importe_Pagado),
-        SUM(fu.Importe_Facturado),
-        SUM(fu.Pago_En_Termino),
-        SUM(fu.Pago_Fuera_Termino)
-
-    FROM Finanzas_Unificadas fu
-    JOIN [NORMALIZADOS].[BI_DIM_TIEMPO] t ON YEAR(fu.Fecha_Evento) = t.ANIO AND MONTH(fu.Fecha_Evento) = t.MES
-    JOIN [NORMALIZADOS].[BI_DIM_CATEGORIA_CURSO] dim_cat ON fu.Categoria_Descripcion = dim_cat.CURSO_CATEGORIA
-    LEFT JOIN [NORMALIZADOS].[BI_DIM_MEDIO_PAGO] dim_mp ON fu.Medio_Pago_Nombre = dim_mp.MEDIO_PAGO_NOMBRE
-    GROUP BY t.TIEMPO_ID, fu.Sede_ID, dim_cat.ID, ISNULL(dim_mp.MEDIO_PAGO_ID, -1);
-END
-GO
 ---------------------------------------------------------------------------------------------------
 -- 6. EJECUCIÓN DE MIGRACIÓN
 ---------------------------------------------------------------------------------------------------
@@ -651,8 +630,8 @@ BEGIN TRANSACTION
     EXEC [NORMALIZADOS].[sp_migrar_bi_hechos_inscripcion];
     EXEC [NORMALIZADOS].[sp_migrar_bi_hechos_curso];
     EXEC [NORMALIZADOS].[sp_migrar_bi_examen_final];
+	EXEC [NORMALIZADOS].[sp_migrar_bi_pagos];
     EXEC [NORMALIZADOS].[sp_migrar_bi_encuestas];
-    EXEC [NORMALIZADOS].[sp_migrar_bi_hechos];
 COMMIT TRANSACTION
 GO
 
@@ -696,8 +675,6 @@ JOIN [NORMALIZADOS].[BI_DIM_SEDE] s ON h.SEDE_ID = s.SEDE_ID
 GROUP BY t.ANIO, t.MES, s.SEDE_NOMBRE;
 GO
 
-SELECT * FROM [NORMALIZADOS].[BI_HECHOS_INSCRIPCION]
-GO
 -- 3. Comparación de desempeño de cursada (Aprobación por sede por año)
 -- Fuente: BI_HECHOS_CURSO
 CREATE VIEW [NORMALIZADOS].[Vista_03_Desempeno_Cursada] AS
@@ -715,7 +692,6 @@ FROM [NORMALIZADOS].[BI_HECHOS_CURSO] h
 JOIN [NORMALIZADOS].[BI_DIM_TIEMPO] t ON h.TIEMPO_ID = t.TIEMPO_ID
 JOIN [NORMALIZADOS].[BI_DIM_SEDE] s ON h.SEDE_ID = s.SEDE_ID
 GROUP BY t.ANIO, s.SEDE_NOMBRE
-ORDER BY t.ANIO
 GO
 
 -- 4. Tiempo promedio de finalización de curso (Por categoria, por año)
@@ -735,7 +711,6 @@ FROM [NORMALIZADOS].[BI_HECHOS_CURSO] h
 INNER JOIN [NORMALIZADOS].[BI_DIM_TIEMPO] t ON h.TIEMPO_ID = t.TIEMPO_ID
 INNER JOIN [NORMALIZADOS].[BI_DIM_CATEGORIA_CURSO] dc ON h.CATEGORIA_CURSO_CODIGO = dc.ID
 GROUP BY t.ANIO, dc.CURSO_CATEGORIA
-ORDER BY t.ANIO
 GO
 
 -- 5. Nota promedio de finales (Rango etario alumno, categoria curso, semestre/SEMESTRE)
@@ -849,13 +824,13 @@ HAVING SUM(h.CANTIDAD_ENCUESTAS) > 0
 GO
 ---------------------------   
 --ver  views
-SELECT * FROM [NORMALIZADOS].[Vista_01_Categorias_Turnos_Mas_Solicitados];
-SELECT * FROM [NORMALIZADOS].[Vista_02_Tasa_Rechazo_Inscripciones];
-SELECT * FROM [NORMALIZADOS].[Vista_03_Desempeno_Cursada];
-SELECT * FROM [NORMALIZADOS].[Vista_04_Tiempo_Promedio_Finalizacion];
-SELECT * FROM [NORMALIZADOS].[Vista_05_Promedio_Nota_Finales];
-SELECT * FROM [NORMALIZADOS].[Vista_06_Ausentismo_Finales];
-SELECT * FROM [NORMALIZADOS].[Vista_07_Desvio_Pagos];
-SELECT * FROM [NORMALIZADOS].[Vista_08_Morosidad_Mensual];
-SELECT * FROM [NORMALIZADOS].[Vista_09_Ingresos_Categoria];
-SELECT * FROM [NORMALIZADOS].[Vista_10_Indice_Satisfaccion];
+--SELECT * FROM [NORMALIZADOS].[Vista_01_Categorias_Turnos_Mas_Solicitados];
+--SELECT * FROM [NORMALIZADOS].[Vista_02_Tasa_Rechazo_Inscripciones];
+--SELECT * FROM [NORMALIZADOS].[Vista_03_Desempeno_Cursada];
+--SELECT * FROM [NORMALIZADOS].[Vista_04_Tiempo_Promedio_Finalizacion];
+--SELECT * FROM [NORMALIZADOS].[Vista_05_Promedio_Nota_Finales];
+--SELECT * FROM [NORMALIZADOS].[Vista_06_Ausentismo_Finales];
+--SELECT * FROM [NORMALIZADOS].[Vista_07_Desvio_Pagos];
+--SELECT * FROM [NORMALIZADOS].[Vista_08_Morosidad_Mensual];
+--SELECT * FROM [NORMALIZADOS].[Vista_09_Ingresos_Categoria];
+--SELECT * FROM [NORMALIZADOS].[Vista_10_Indice_Satisfaccion];
