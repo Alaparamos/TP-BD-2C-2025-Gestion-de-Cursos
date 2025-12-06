@@ -17,16 +17,6 @@ BEGIN
     DROP VIEW IF EXISTS [NORMALIZADOS].[Vista_08_Morosidad_Mensual];
     DROP VIEW IF EXISTS [NORMALIZADOS].[Vista_09_Ingresos_Categoria];
     DROP VIEW IF EXISTS [NORMALIZADOS].[Vista_10_Indice_Satisfaccion];
-    -- Tablas de Hechos
-    -- DROP TABLE IF EXISTS [NORMALIZADOS].[BI_HECHOS_INSCRIPCION_CURSADA];
-    -- DROP TABLE IF EXISTS [NORMALIZADOS].[BI_HECHOS_INSCRIPCION_CATEGORIA];
-    -- DROP TABLE IF EXISTS [NORMALIZADOS].[BI_HECHOS_APROBADOS];
-    -- DROP TABLE IF EXISTS [NORMALIZADOS].[BI_HECHOS_FINALIZACION_CURSADA];
-    -- DROP TABLE IF EXISTS [NORMALIZADOS].[BI_HECHOS_EXAMEN_FINAL];
-    -- DROP TABLE IF EXISTS [NORMALIZADOS].[BI_HECHOS_AUSENTISMO_FINAL];
-    -- DROP TABLE IF EXISTS [NORMALIZADOS].[BI_HECHOS_PAGO];
-    -- DROP TABLE IF EXISTS [NORMALIZADOS].[BI_HECHOS_INGRESOS];
-    -- DROP TABLE IF EXISTS [NORMALIZADOS].[BI_HECHOS_ENCUESTA];
     DROP TABLE IF EXISTS [NORMALIZADOS].[BI_HECHOS_INSCRIPCION];
     DROP TABLE IF EXISTS [NORMALIZADOS].[BI_HECHOS_EXAMEN_FINAL];
     DROP TABLE IF EXISTS [NORMALIZADOS].[BI_HECHOS_CURSO];
@@ -217,26 +207,6 @@ CREATE TABLE [NORMALIZADOS].[BI_HECHOS_EXAMEN_FINAL] (
     )
 );
 GO
-
--- -- HECHO 7: Pagos (Financiero general por Tiempo)
--- CREATE TABLE [NORMALIZADOS].[BI_HECHOS_PAGO] (
---     TIEMPO_ID INT FOREIGN KEY REFERENCES [NORMALIZADOS].[BI_DIM_TIEMPO](TIEMPO_ID),
---     IMPORTE_PAGADO DECIMAL(18,2),
---     IMPORTE_FACTURADO DECIMAL(18,2), 
---     PAGO_EN_TERMINO INT, 
---     PAGO_FUERA_TERMINO INT 
--- );
-
--- -- HECHO 8: Ingresos (Detallado por Categoria, Sede)
--- CREATE TABLE [NORMALIZADOS].[BI_HECHOS_INGRESOS] (
---     TIEMPO_ID INT FOREIGN KEY REFERENCES [NORMALIZADOS].[BI_DIM_TIEMPO](TIEMPO_ID),
---     CATEGORIA_CURSO_CODIGO BIGINT FOREIGN KEY REFERENCES [NORMALIZADOS].[BI_DIM_CATEGORIA_CURSO](ID),
---     SEDE_ID BIGINT FOREIGN KEY REFERENCES [NORMALIZADOS].[BI_DIM_SEDE](SEDE_ID),
---     TOTAL_INGRESOS DECIMAL(18,2)
--- );
-
---se unifican ambos hechos en uno solo
-
 
 -- HECHO 4: Pagos (Financiero por Tiempo, Sede, Categoria, Medio de Pago)
 CREATE TABLE [NORMALIZADOS].[BI_HECHOS_PAGO] (
@@ -514,8 +484,7 @@ BEGIN
         fu.Sede_ID,
         dim_cat.ID,
         
-        -- Mapeo al ID -1 si es NULL (Caso Facturas/Deuda)
-        ISNULL(dim_mp.MEDIO_PAGO_ID, -1), 
+        ISNULL(dim_mp.MEDIO_PAGO_ID, -1),  -- Mapeo al ID -1 si es NULL (Caso Facturas/Deuda)
         
         SUM(fu.Importe_Pagado),
         SUM(fu.Importe_Facturado),
@@ -524,9 +493,8 @@ BEGIN
 
     FROM (
         -- Subconsulta: Unificación de Facturas y Pagos
-        
+
         -- 1. DEUDA GENERADA (Facturas emitidas)
-        -- Aquí tomamos el importe directo del detalle (lo que vale cada curso)
         SELECT 
             f.Factura_FechaEmision AS Fecha_Evento,
             c.Sede_ID,
@@ -544,19 +512,14 @@ BEGIN
         UNION ALL
 
         -- 2. COBRANZA REAL (Pagos realizados)
-        -- AQUÍ ESTÁ EL FIX: Prorrateamos el pago según el peso del ítem en la factura
         SELECT 
             p.Pago_Fecha AS Fecha_Evento,
             c.Sede_ID,
             cat.Categoria_Descripcion,
             p.Pago_MedioPago AS Medio_Pago_Nombre,
-            
-            -- FIX DE DINERO: (Pago Real * (Importe del Item / Total Factura))
             (p.Pago_Importe * df.Detalle_Factura_Importe / f.Factura_Total) AS Importe_Pagado,
-            
             0 AS Importe_Facturado,
             
-            -- Conteo: Sigue siendo 1 por ítem (Esto explica la diferencia 38k vs 16k)
             CASE WHEN p.Pago_Fecha <= f.Factura_FechaVencimiento THEN 1 ELSE 0 END, 
             CASE WHEN p.Pago_Fecha > f.Factura_FechaVencimiento THEN 1 ELSE 0 END
         FROM [NORMALIZADOS].[Pago] p
@@ -564,16 +527,13 @@ BEGIN
         JOIN [NORMALIZADOS].[Detalle_Factura] df ON f.Factura_Numero = df.Factura_Numero
         JOIN [NORMALIZADOS].[Curso] c ON df.Curso_Codigo = c.Curso_Codigo
         JOIN [NORMALIZADOS].[Categoria] cat ON c.Categoria_ID = cat.Categoria_ID
-        WHERE f.Factura_Total > 0 -- Protección contra división por cero
+        WHERE f.Factura_Total > 0 -- Por la división por cero
     ) fu
     
-    -- Joins a Dimensiones
     JOIN [NORMALIZADOS].[BI_DIM_TIEMPO] t 
         ON YEAR(fu.Fecha_Evento) = t.ANIO AND MONTH(fu.Fecha_Evento) = t.MES
     JOIN [NORMALIZADOS].[BI_DIM_CATEGORIA_CURSO] dim_cat 
         ON fu.Categoria_Descripcion = dim_cat.CURSO_CATEGORIA
-    
-    -- LEFT JOIN con Medio de Pago
     LEFT JOIN [NORMALIZADOS].[BI_DIM_MEDIO_PAGO] dim_mp 
         ON fu.Medio_Pago_Nombre = dim_mp.MEDIO_PAGO_NOMBRE
     
